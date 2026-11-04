@@ -97,6 +97,23 @@ Para que arranque solo con Windows: doble clic en `arranque-con-windows.bat` (y 
 | 🤙 Pulgar y meñique, girar la mano | Perilla de volumen |
 | Modo dibujo: pellizcar y mover / puño | Dibujar trazos de luz / borrar |
 | Modo esfera: pellizcar y arrastrar / dos manos | Girar la esfera / agrandarla |
+| 🤘 Índice y meñique | Menú radial de apps: apunta y pellizca |
+
+## Hologramas
+Se piden por voz («Hey Jarvis, muestra el sistema solar») o desde el chip **HOLOGRAMAS** de la página.
+
+| Holograma | Qué es |
+|---|---|
+| Escáner de identidad | Un retículo sigue tu cara: «IDENTIDAD: …, ACCESO CONCEDIDO» o «DESCONOCIDA» |
+| Efectos | Estelas de partículas en los dedos; dos palmas juntas crean una bola de energía, y al cerrar los puños explota |
+| Sistema solar | Planetas en órbita; un pellizco rápido sobre uno muestra sus datos |
+| Globo terráqueo | Continentes, tu ubicación, el día y la noche en tiempo real, y el clima de las ciudades que pidas |
+| Esfera holográfica | Esfera de alambre 3D que se gira y se agranda |
+| Dibujo | Trazos de luz en el aire |
+| Teclado | Teclado flotante: escribes pellizcando las teclas |
+| Notas adhesivas | «Crea una nota: …». Se mueven con la mano, se borran con un puño y se guardan |
+| Visualizador | Espectro circular que reacciona a la música y a la voz de Jarvis |
+| Temporizador | «Pon un temporizador de 5 minutos»: un anillo junto al orbe que se va vaciando |
 
 ## Configuración opcional (variables de entorno)
 | Variable | Para qué |

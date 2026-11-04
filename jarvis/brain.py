@@ -53,8 +53,13 @@ Acciones disponibles (tool y args):
 - forget_face {"name": "..."} / guard_on {} / guard_off {}  (modo guardia: bloquea la PC si se sienta alguien desconocido)
 - orb_on {} / orb_off {}  (el orbe de Jarvis en una esquina del escritorio)
 - subtitles_on {} / subtitles_off {}  (modo presentación: lo que digan el usuario y Jarvis aparece en subtítulos grandes)
-- draw_on {} / draw_off {}  (dibujar en el aire con las manos; enciende el holograma)
-- globe_on {} / globe_off {}  (esfera holográfica 3D que se gira y agranda con las manos; enciende el holograma)
+- holo {"name": "...", "enabled": true|false}  (muestra u oculta un holograma; enciende el modo holograma si hace falta). name:
+    draw (dibujar en el aire), globe (esfera holográfica), solar (sistema solar), earth (globo terráqueo con día y noche),
+    scanner (escáner de identidad sobre la cara), effects (partículas en los dedos y bola de energía entre las manos),
+    keyboard (teclado holográfico), notes (notas adhesivas flotantes), visualizer (visualizador de la música)
+- earth_city {"city": "Madrid"}  (marca una ciudad con su clima en el globo terráqueo y lo muestra)
+- create_note {"text": "..."} / delete_note {"id": "..."} / list_notes {}  (notas adhesivas holográficas; se guardan)
+- set_timer {"minutes": número, "seconds": número, "label": "..."}  (temporizador con anillo en pantalla; avisa al terminar)
 - record_start {} / record_stop {}  (grabar la pantalla y el micrófono en Videos\\Jarvis)
 
 Nunca pidas confirmación por texto: cuando el usuario pida algo, propón la acción de inmediato.

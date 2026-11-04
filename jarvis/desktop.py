@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.request
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 import psutil
@@ -240,6 +241,61 @@ class Subtitles(QWidget):
             y = box.top() - 10
 
 
+class Timers(QWidget):
+    """Temporizadores: un anillo que se vacía, encima del orbe."""
+
+    SIZE = 150
+
+    def __init__(self):
+        flags = (Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+                 | Qt.WindowDoesNotAcceptFocus | Qt.WindowTransparentForInput)
+        super().__init__(None, flags)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.items = []
+        self.big = QFont("Consolas", 20)
+        self.small = QFont("Consolas", 8)
+
+    def show_items(self, items, orb):
+        self.items = items
+        if not items:
+            self.hide()
+            return
+        width = self.SIZE * len(items)
+        self.setGeometry(orb.x() + orb.width() - width, orb.y() - self.SIZE - 6, width, self.SIZE)
+        self.show()
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        now = datetime.now()
+        for i, item in enumerate(self.items):
+            due, created = datetime.fromisoformat(item["due"]), datetime.fromisoformat(item["created"])
+            total = max(1.0, (due - created).total_seconds())
+            left = max(0.0, (due - now).total_seconds())
+            center = QPointF(i * self.SIZE + self.SIZE / 2, self.SIZE / 2)
+            radius = self.SIZE / 2 - 14
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(2, 14, 24, 190))
+            painter.drawEllipse(center, radius + 10, radius + 10)
+            box = QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2)
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(faded(CYAN, 50), 8))
+            painter.drawEllipse(box)
+            urgent = left <= 10
+            painter.setPen(QPen(RED if urgent else AMBER if left <= 60 else CYAN, 8, Qt.SolidLine, Qt.RoundCap))
+            painter.drawArc(box, 90 * 16, int(360 * 16 * left / total))
+            painter.setFont(self.big)
+            painter.setPen(WHITE)
+            painter.drawText(QRectF(box.left(), center.y() - 18, box.width(), 30), Qt.AlignCenter,
+                             f"{int(left // 60)}:{int(left % 60):02d}")
+            painter.setFont(self.small)
+            painter.setPen(GRAY)
+            label = "TEMPORIZADOR" if item["text"] == "temporizador" else item["text"].upper()[:16]
+            painter.drawText(QRectF(box.left(), center.y() + 14, box.width(), 16), Qt.AlignCenter, label)
+
+
 class Boot(QWidget):
     """La animación de arranque a pantalla completa."""
 
@@ -332,6 +388,7 @@ def main():
     screen = app.primaryScreen()
     orb = Orb(screen.availableGeometry())
     subtitles = Subtitles(screen.availableGeometry())
+    timers = Timers()
     boot = Boot(screen.geometry()) if os.environ.get("JARVIS_BOOT") == "1" else None
     if boot:
         boot.show()
@@ -348,6 +405,7 @@ def main():
             orb.set_state(state, True, data.get("recording", {}).get("recording", False))
             status["subtitles"] = data.get("modes", {}).get("subtitles", False)
             status["hologram"] = data.get("hologram", False)
+            timers.show_items(data.get("timers", []), orb)
             for event in data["events"]:
                 if event["type"] in ("user", "jarvis") and event.get("text"):
                     subtitles.add(event["type"], event["text"])
@@ -370,6 +428,8 @@ def main():
         orb.tick(dt)
         if subtitles.isVisible():
             subtitles.update()
+        if timers.isVisible():
+            timers.update()
         if boot is not None and boot.isVisible():
             if boot.progress() >= 1:
                 boot.hide()

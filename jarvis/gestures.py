@@ -33,6 +33,9 @@ MAX_STROKES = 80
 GLOBE_DRAG = 0.006  # radianes por píxel al girar la esfera
 GLOBE_IDLE_SPIN = 0.35  # radianes por segundo cuando nadie la toca
 KNOB_TURN = math.pi  # media vuelta de muñeca = volumen de 0 a 100
+MENU_INNER = 70  # píxeles desde el centro del menú radial para elegir una opción
+MENU_TIMEOUT = 6.0
+TAP_TIME = 0.35  # un pellizco más corto que esto, sin mover la mano, es un toque
 
 
 @dataclass
@@ -40,7 +43,7 @@ class HandInput:
     id: str
     point: tuple[float, float]  # en píxeles físicos de pantalla
     ratio: float  # distancia pulgar-índice / tamaño de la mano
-    pose: str = "other"  # "palm", "fist", "two", "three", "shaka" u "other"
+    pose: str = "other"  # "palm", "fist", "two", "three", "shaka", "rock" u "other"
     middle_ratio: float = 9.9  # distancia pulgar-medio / tamaño de la mano (clic derecho)
     angle: float = 0.0  # giro de la mano en la pantalla, en radianes (perilla de volumen)
 
@@ -89,6 +92,8 @@ def hand_pose(points: list[tuple[float, float]]) -> str:
     thumb_out = distance(points[4], points[5]) > distance(points[0], points[9]) * 0.6
     if folded(8, 6) and folded(12, 10) and folded(16, 14) and extended(20, 18) and thumb_out:
         return "shaka"  # 🤙 pulgar y meñique: la perilla de volumen
+    if extended(8, 6) and folded(12, 10) and folded(16, 14) and extended(20, 18):
+        return "rock"  # 🤘 índice y meñique: el menú radial
     if extended(8, 6) and extended(12, 10) and folded(16, 14) and folded(20, 18) and pinch_ratio(points) > PINCH_OFF:
         return "two"
     return "other"
@@ -120,11 +125,18 @@ class OneEuro:
 
 
 class Engine:
-    def __init__(self, windows, cursor, keys=None, work_area=None, volume=None):
+    def __init__(self, windows, cursor, keys=None, work_area=None, volume=None, ui=None, menu=None):
         """keys pulsa un atajo como "alt+tab". work_area: (x, y, ancho, alto) sin la barra de tareas.
-        volume: objeto con get() y set(nivel de 0 a 1)."""
+        volume: objeto con get() y set(nivel de 0 a 1).
+        ui: elementos flotantes que se pellizcan (teclado, notas), con hit, press, drag, release y fist.
+        menu: (cantidad de opciones, función que abre la opción n) para el menú radial."""
         self.windows = windows
         self.volume = volume
+        self.ui = ui
+        self.menu_items, self.open_item = menu or (0, None)
+        self.menu = None  # {"center", "selected", "since"} mientras el menú radial está abierto
+        self.effects_mode = False
+        self.tap = None  # (punto, cuándo) del último toque sobre un objeto 3D
         self.draw_mode = False
         self.globe_mode = False
         self.strokes = []  # trazos del modo dibujo, en píxeles de pantalla
@@ -235,6 +247,14 @@ class Engine:
         elif self.primary not in self.points:
             self.primary = next(iter(self.points))
         point = self.points[self.primary]
+        if self.menu is not None:
+            return self._menu_idle(pinched, point, now)
+        if self.ui is not None and self.primary in pinched:
+            token = self.ui.hit(point)
+            if token is not None:
+                self.ui.press(token, point)
+                self.ui_token, self.mode = token, "ui_holding"
+                return
         if self.draw_mode:
             return self._draw_idle(pinched, point, now)
         if self.globe_mode:
@@ -252,7 +272,9 @@ class Engine:
                 self._fist_start, self._fist_point = since, self._cursor_point
             if now - self._fist_start >= FIST_TO_MINIMIZE:
                 target = self.windows.at(*self._fist_point)
-                if target is not None:
+                if self.ui is not None and self.ui.fist(self._fist_point):
+                    self.status = "BORRADO"
+                elif target is not None:
                     self.windows.minimize(target)
                     self._minimized.append(target)
                     self.status = "VENTANA MINIMIZADA"
@@ -271,6 +293,10 @@ class Engine:
             # Al abrir la mano el punto entre pulgar e índice salta: el cursor espera.
             return
 
+        if pose == "rock" and self.menu_items:
+            self.menu = {"center": point, "selected": None, "since": now}
+            self.status = "MENÚ: APUNTA Y PELLIZCA"
+            return
         if pose == "shaka" and self.volume is not None:
             self.mode = "volume"
             self.knob_angle, self.knob_turned = self.angles.get(self.primary, 0.0), 0.0
@@ -293,6 +319,42 @@ class Engine:
             self.mode = "pressing"
             self.press_time, self.press_point = now, point
             self.target = self.windows.at(*point)
+
+    def _ui_holding(self, started, now):
+        if not self._holding(self.primary):
+            self.ui.release(self.ui_token, self.points.get(self.primary))
+            self.mode = "idle"
+            return
+        point = self.points[self.primary]
+        self._move_cursor(point)
+        self.ui.drag(self.ui_token, point)
+
+    def _menu_idle(self, pinched, point, now):
+        """Menú radial: apuntas hacia una opción alejando la mano del centro y pellizcas."""
+        menu = self.menu
+        self._move_cursor(point)
+        dx, dy = point[0] - menu["center"][0], point[1] - menu["center"][1]
+        if math.hypot(dx, dy) >= MENU_INNER:
+            turn = (math.atan2(dy, dx) + math.pi / 2) % (2 * math.pi)  # 0 arriba, crece en sentido horario
+            slice_ = 2 * math.pi / self.menu_items
+            menu["selected"] = int(((turn + slice_ / 2) % (2 * math.pi)) // slice_)
+        else:
+            menu["selected"] = None
+        if self.primary in pinched:
+            if menu["selected"] is not None:
+                self.open_item(menu["selected"])
+                self._flash("ABRIENDO", now)
+                self._cooldown_until = now + 0.6
+            self.menu = None
+            self.mode = "pressing_ignored"
+        elif self._pose(self.primary, now) == "fist" or (menu["selected"] is None and now - menu["since"] > MENU_TIMEOUT):
+            self.menu = None
+            self.status = ""
+
+    def _pressing_ignored(self, started, now):
+        """El pellizco que eligió en el menú no debe hacer además un clic."""
+        if not self._holding(self.primary):
+            self.mode = "idle"
 
     def _toggle_maximize(self, point, now):
         """Sobre una ventana: maximizarla o restaurarla. Fuera de ventanas: traer la última minimizada."""
@@ -327,6 +389,8 @@ class Engine:
 
         Se dispara una sola vez: para repetirlo hay que bajar o cerrar una mano antes.
         """
+        if self.effects_mode:
+            return False  # con los efectos, las dos palmas hacen la bola de energía
         palms = len(self.points) >= 2 and all(self._pose(hand_id, now) == "palm" for hand_id in self.points)
         if not palms:
             self._palms_since = None
@@ -456,10 +520,14 @@ class Engine:
         if self.primary in pinched:
             self.mode = "globe_rotating"
             self.globe_last, self.globe_last_time = point, now
+            self.globe_pressed, self.globe_moved = (point, now), 0.0
             self.status = "GIRANDO ESFERA"
 
     def _globe_rotating(self, started, now):
         if not self._holding(self.primary):
+            press_point, pressed_at = self.globe_pressed
+            if now - pressed_at <= TAP_TIME and self.globe_moved <= CLICK_SLOP:
+                self.tap = (press_point, now)
             self.mode = "idle"
             self.status = ""
             return
@@ -474,6 +542,7 @@ class Engine:
             return
         dx, dy = point[0] - self.globe_last[0], point[1] - self.globe_last[1]
         dt = max(1 / 120, now - self.globe_last_time)
+        self.globe_moved += math.hypot(dx, dy)
         self.globe_last, self.globe_last_time = point, now
         self.globe["yaw"] += dx * GLOBE_DRAG
         self.globe["pitch"] = min(1.4, max(-1.4, self.globe["pitch"] + dy * GLOBE_DRAG))
@@ -498,7 +567,7 @@ class Engine:
         if not grabbed:
             globe["yaw"] += globe["spin"] * dt
             # El impulso se apaga poco a poco hasta volver al giro lento de siempre.
-            globe["spin"] += (GLOBE_IDLE_SPIN - globe["spin"]) * min(1.0, dt * 0.8)
+            globe["spin"] += (globe.get("idle", GLOBE_IDLE_SPIN) - globe["spin"]) * min(1.0, dt * 0.8)
         globe["tilt"] += dt * 0.6
 
     def _fist_done(self, started, now):

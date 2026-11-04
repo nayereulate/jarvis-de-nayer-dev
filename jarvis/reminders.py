@@ -55,8 +55,10 @@ class Reminders:
         self.path.parent.mkdir(exist_ok=True)
         self.path.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    def add(self, text: str, when: datetime, alarm: bool = False) -> dict:
-        item = {"id": uuid.uuid4().hex[:6], "text": text.strip(), "due": when.isoformat(timespec="seconds"), "alarm": bool(alarm)}
+    def add(self, text: str, when: datetime, alarm: bool = False, kind: str = "reminder") -> dict:
+        """kind: "reminder" o "timer" (los temporizadores se ven como un anillo que se vacía)."""
+        item = {"id": uuid.uuid4().hex[:6], "text": text.strip(), "due": when.isoformat(timespec="seconds"),
+                "alarm": bool(alarm), "kind": kind, "created": datetime.now().isoformat(timespec="seconds")}
         with self._lock:
             self._save(sorted(self.all() + [item], key=lambda entry: entry["due"]))
         return item

@@ -16,6 +16,7 @@ from . import briefing, files, push, recorder, screen, speech, tools, voice
 from .brain import DATA_DIR, Brain, BrainError, audit
 from .events import Events
 from .listener import Listener
+from .notes import notes
 from .presence import Presence
 from .reminders import reminders
 from .speaker import Speaker, startup_sound
@@ -89,7 +90,10 @@ def announce(text: str, title: str | None = None, alarm: bool = False, then=None
 
 def on_reminder(item: dict) -> None:
     audit("reminder_due", **item)
-    if item.get("alarm"):
+    if item.get("kind") == "timer":
+        label = "" if item["text"] == "temporizador" else f": {item['text']}"
+        announce(f"Se acabó el temporizador{label}.", title="⏱ Temporizador", alarm=True)
+    elif item.get("alarm"):
         announce(f"Alarma: {item['text']}. Repito: {item['text']}.", title="⏰ Alarma", alarm=True)
     else:
         announce(f"Recordatorio: {item['text']}", title="Recordatorio", alarm=True)
@@ -234,15 +238,39 @@ def get_events(after: int = -1) -> dict:
         "whisper": speech.device,
         "modes": {**tools.settings, "orb": tools.desktop.running()},
         "recording": recorder.status(),
+        "notes": notes.all() if tools.settings["notes"] else [],
+        "timers": [item for item in reminders.all() if item.get("kind") == "timer"],
     }
+
+
+class MoveRequest(BaseModel):
+    x: float
+    y: float
+
+
+@app.post("/api/notes/{note_id}/move", dependencies=[Depends(require_token)])
+def move_note(note_id: str, request: MoveRequest) -> dict:
+    notes.move(note_id, request.x, request.y)
+    return {"ok": True}
+
+
+@app.delete("/api/notes/{note_id}", dependencies=[Depends(require_token)])
+def delete_note(note_id: str) -> dict:
+    try:
+        return notes.delete(note_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.post("/api/toggle/{name}", dependencies=[Depends(require_token)])
 async def toggle(name: str, request: ListenerRequest) -> dict:
-    if name not in TOGGLES:
+    if name in tools.HOLO_MODES:
+        tool, args = "holo", {"name": name, "enabled": request.enabled}
+    elif name in TOGGLES:
+        tool, args = TOGGLES[name][0 if request.enabled else 1], {}
+    else:
         raise HTTPException(status_code=404, detail="Modo desconocido")
-    tool = TOGGLES[name][0 if request.enabled else 1]
-    outcome = await asyncio.to_thread(tools.execute, tool)
+    outcome = await asyncio.to_thread(tools.execute, tool, args)
     audit("toggle", tool=tool, ok=outcome["ok"])
     if not outcome["ok"]:
         raise HTTPException(status_code=409, detail=outcome["error"])

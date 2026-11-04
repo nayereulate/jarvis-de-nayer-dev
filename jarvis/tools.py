@@ -5,7 +5,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import psutil
@@ -14,6 +14,7 @@ from pynput.keyboard import Controller, Key
 from . import briefing as briefing_module
 from . import files, recorder
 from .memory import memory
+from .notes import notes
 from .paths import DATA_DIR, ROOT
 from .reminders import parse_when, reminders
 from .routines import routines
@@ -21,7 +22,16 @@ from .routines import routines
 MAX_OUTPUT = 8000
 _keyboard = Controller()
 # Modos que leen las ventanas de Jarvis (holograma y orbe) cada vez que preguntan al servidor.
-settings = {"subtitles": False, "draw": False, "globe": False}
+settings = {"subtitles": False, "draw": False, "globe": False, "solar": False, "earth": False,
+            "scanner": False, "effects": False, "keyboard": False, "notes": False, "visualizer": False,
+            "earth_cities": []}
+HOLO_MODES = {
+    "draw": "dibujo en el aire", "globe": "esfera holográfica", "solar": "sistema solar",
+    "earth": "globo terráqueo", "scanner": "escáner de identidad", "effects": "efectos de partículas y bola de energía",
+    "keyboard": "teclado holográfico", "notes": "notas adhesivas", "visualizer": "visualizador de audio",
+}
+# Estos usan el pellizco para sí mismos: solo uno a la vez.
+EXCLUSIVE = {"draw", "globe", "solar", "earth"}
 # El servidor conecta aquí lo que vive fuera de este módulo: la escucha, la presencia, los avisos.
 hooks = {}
 
@@ -237,7 +247,7 @@ def hologram_on() -> str:
 
 
 def hologram_off() -> str:
-    settings.update(draw=False, globe=False)
+    settings.update({name: False for name in HOLO_MODES})
     return "Modo holograma desactivado" if hologram.stop() else "El modo holograma ya estaba apagado"
 
 
@@ -262,26 +272,79 @@ def subtitles_off() -> str:
     return "Subtítulos desactivados"
 
 
-def draw_on() -> str:
+HOW_TO = {
+    "draw": "pellizca y mueve la mano para dibujar; puño para borrar",
+    "globe": "pellizca y arrastra para girarla; con dos manos, agrándala",
+    "solar": "pellizca y arrastra para girarlo; un pellizco rápido sobre un planeta muestra sus datos",
+    "earth": "pellizca y arrastra para girarlo; pídeme el clima de una ciudad para marcarla",
+    "scanner": "mira a la cámara",
+    "effects": "mueve los dedos; junta las dos palmas abiertas para crear la bola de energía y cierra los puños para soltarla",
+    "keyboard": "pellizca las teclas; escribe en la ventana activa",
+    "notes": "pellizca una nota para moverla; un puño sobre ella la borra",
+    "visualizer": "pon música",
+}
+
+
+def holo(name: str, enabled: bool = True) -> str:
+    """Muestra u oculta un holograma; enciende el modo holograma si hace falta."""
+    if name not in HOLO_MODES:
+        raise ValueError(f"Holograma desconocido: {name}. Disponibles: {', '.join(HOLO_MODES)}")
+    if not enabled:
+        settings[name] = False
+        return f"{HOLO_MODES[name].capitalize()}: oculto"
     hologram_on()
-    settings.update(draw=True, globe=False)
-    return "Modo dibujo: pellizca y mueve la mano para dibujar; puño para borrar"
+    if name in EXCLUSIVE:
+        settings.update({other: False for other in EXCLUSIVE})
+    settings[name] = True
+    return f"{HOLO_MODES[name].capitalize()} en pantalla: {HOW_TO[name]}"
+
+
+def draw_on() -> str:
+    return holo("draw")
 
 
 def draw_off() -> str:
-    settings["draw"] = False
-    return "Modo dibujo desactivado"
+    return holo("draw", False)
 
 
 def globe_on() -> str:
-    hologram_on()
-    settings.update(globe=True, draw=False)
-    return "Esfera holográfica en pantalla: pellizca y arrastra para girarla, con dos manos para agrandarla"
+    return holo("globe")
 
 
 def globe_off() -> str:
-    settings["globe"] = False
-    return "Esfera holográfica oculta"
+    return holo("globe", False)
+
+
+def earth_city(city: str) -> str:
+    """Marca una ciudad con su clima en el globo terráqueo."""
+    city = city.strip()
+    cities = [c for c in settings["earth_cities"] if c.lower() != city.lower()]
+    settings["earth_cities"] = (cities + [city])[-6:]
+    message = holo("earth")
+    return f"{message}. Marqué {city} con su clima"
+
+
+def create_note(text: str) -> str:
+    item = notes.add(text)
+    settings["notes"] = True
+    shown = "Se ve en el holograma" if hologram_running() else "La verás cuando actives el holograma"
+    return f"Nota creada ({item['id']}). {shown}"
+
+
+def delete_note(id: str) -> str:
+    return f"Nota borrada: {notes.delete(id)['text']}"
+
+
+def list_notes() -> list[dict]:
+    return [{"id": item["id"], "text": item["text"]} for item in notes.all()]
+
+
+def set_timer(minutes: float | None = None, seconds: float | None = None, label: str = "") -> dict:
+    total = float(minutes or 0) * 60 + float(seconds or 0)
+    if total <= 0:
+        raise ValueError("Indica minutes o seconds")
+    item = reminders.add(label or "temporizador", datetime.now() + timedelta(seconds=total), alarm=True, kind="timer")
+    return {"id": item["id"], "ends": item["due"], "seconds": round(total)}
 
 
 def web_search(query: str) -> str:
@@ -410,7 +473,8 @@ def list_routines() -> dict:
 
 
 def briefing(name: str = "") -> str:
-    return briefing_module.build(datetime.now(), system_status(), briefing_module.weather(), reminders.all(), name)
+    upcoming = [item for item in reminders.all() if item.get("kind") != "timer"]
+    return briefing_module.build(datetime.now(), system_status(), briefing_module.weather(), upcoming, name)
 
 
 def share_file(path: str) -> str:
@@ -467,6 +531,12 @@ SAFE_TOOLS = {
     "draw_off": draw_off,
     "globe_on": globe_on,
     "globe_off": globe_off,
+    "holo": holo,
+    "earth_city": earth_city,
+    "create_note": create_note,
+    "delete_note": delete_note,
+    "list_notes": list_notes,
+    "set_timer": set_timer,
     "record_start": record_start,
     "record_stop": record_stop,
 }

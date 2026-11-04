@@ -193,6 +193,9 @@ def test_hand_poses():
     assert hand_pose(fake_hand((True, True, False, False))) == "two"
     assert hand_pose(fake_hand((True, True, True, False))) == "three"
     assert hand_pose(fake_hand((False, False, False, True))) == "shaka"
+    rock = fake_hand((True, False, False, True))
+    rock[4] = (-25, -45)  # pulgar recogido
+    assert hand_pose(rock) == "rock"
     assert hand_pose(fake_hand((True, False, False, False))) == "other"
 
 
@@ -375,3 +378,64 @@ def test_globe_turns_with_a_pinch_and_grows_with_two_hands():
 
 def windows_untouched(engine):
     return engine.windows.rects["win"] == (100, 100, 800, 600)
+
+
+def test_rock_opens_the_radial_menu_and_pinch_picks_the_pointed_item():
+    opened = []
+    cursor = FakeCursor()
+    engine = Engine(FakeWindows(), cursor, menu=(4, opened.append))
+    now = run(engine, [[("R", (1000, 600), OPEN, "rock")]] * 10)
+    assert engine.menu is not None
+    # Apunta a la derecha: con 4 opciones, la 1 (0 arriba, en sentido horario).
+    now = run(engine, [[("R", (1150, 600), OPEN, "other")]] * 5, start=now)
+    assert engine.menu["selected"] == 1
+    run(engine, [[("R", (1150, 600), PINCH, "other")]] * 3 + [[("R", (1150, 600), OPEN, "other")]] * 3, start=now)
+    assert opened == [1] and engine.menu is None and cursor.clicks == []
+
+
+class FakeUI:
+    def __init__(self):
+        self.log = []
+
+    def hit(self, point):
+        return "key" if point[0] < 200 else None
+
+    def press(self, token, point):
+        self.log.append(("press", token))
+
+    def drag(self, token, point):
+        self.log.append(("drag", token))
+
+    def release(self, token, point):
+        self.log.append(("release", token))
+
+    def fist(self, point):
+        return point[0] < 200
+
+
+def test_pinching_a_floating_element_does_not_click_the_window_below():
+    ui = FakeUI()
+    cursor = FakeCursor()
+    windows = FakeWindows(rect=(0, 0, 800, 600))
+    engine = Engine(windows, cursor, ui=ui)
+    run(engine, hold("R", (150, 300), OPEN, 5) + hold("R", (150, 300), PINCH, 20) + hold("R", (150, 300), OPEN, 3))
+    assert ui.log[0] == ("press", "key") and ui.log[-1] == ("release", "key")
+    assert cursor.clicks == [] and windows.rects["win"] == (0, 0, 800, 600)
+    # Un puño sobre el elemento lo borra en vez de minimizar la ventana.
+    run(engine, [[("R", (150, 300), OPEN, "fist")]] * 30, start=10)
+    assert getattr(windows, "minimized", None) is None
+
+
+def test_effects_mode_keeps_two_palms_for_the_energy_ball():
+    windows = FakeWindows()
+    engine = Engine(windows, FakeCursor())
+    engine.effects_mode = True
+    run(engine, [[("R", (400, 300), OPEN, "palm"), ("L", (900, 300), OPEN, "palm")]] * 60)
+    assert windows.minimize_all_calls == 0
+
+
+def test_quick_pinch_on_a_3d_object_is_a_tap():
+    engine = Engine(FakeWindows(), FakeCursor())
+    engine.globe_mode = True
+    run(engine, hold("R", (500, 400), OPEN, 5) + hold("R", (500, 400), PINCH, 4) + hold("R", (500, 400), OPEN, 2))
+    assert engine.tap is not None and engine.tap[0] == (500, 400)

@@ -21,6 +21,10 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(reminders, "path", tmp_path / "reminders.json")
     monkeypatch.setattr(routines, "path", tmp_path / "routines.json")
     monkeypatch.setattr(files, "SHARE_DIR", tmp_path / "share")
+    from jarvis.notes import notes
+    monkeypatch.setattr(notes, "path", tmp_path / "notes.json")
+    monkeypatch.setattr(tools, "hologram_on", lambda: "ok")
+    monkeypatch.setattr(tools, "settings", {**tools.settings})
 
 
 def test_memory_remembers_and_forgets():
@@ -202,3 +206,37 @@ def test_search_and_new_tools_are_offered_to_claude():
     for tool in ("web_search", "learn_face", "guard_on", "draw_on", "globe_on", "record_start", "subtitles_on"):
         assert tool in tools.SAFE_TOOLS
         assert tool in brain.RESPONSE_SCHEMA["properties"]["actions"]["items"]["properties"]["tool"]["enum"]
+
+
+def test_holograms_that_use_the_pinch_are_exclusive():
+    assert tools.execute("holo", {"name": "solar"})["ok"]
+    assert tools.execute("holo", {"name": "scanner"})["ok"]
+    assert tools.execute("holo", {"name": "earth"})["ok"]
+    assert tools.settings["earth"] and not tools.settings["solar"] and tools.settings["scanner"]
+    assert not tools.execute("holo", {"name": "volar"})["ok"]
+    tools.execute("earth_city", {"city": "Madrid"})
+    assert tools.settings["earth_cities"] == ["Madrid"]
+
+
+def test_notes_are_created_moved_and_deleted_from_the_hologram():
+    assert tools.execute("create_note", {"text": "comprar leche"})["ok"]
+    note = client.get("/api/events", headers=AUTH).json()["notes"][0]
+    assert note["text"] == "comprar leche"
+    assert client.post(f"/api/notes/{note['id']}/move", json={"x": 0.5, "y": 2}, headers=AUTH).status_code == 200
+    moved = client.get("/api/events", headers=AUTH).json()["notes"][0]
+    assert (moved["x"], moved["y"]) == (0.5, 0.95)
+    assert client.delete(f"/api/notes/{note['id']}", headers=AUTH).status_code == 200
+    assert client.delete(f"/api/notes/{note['id']}", headers=AUTH).status_code == 404
+
+
+def test_timer_shows_up_for_the_desktop_and_not_in_the_briefing():
+    outcome = tools.execute("set_timer", {"minutes": 5, "label": "té"})
+    assert outcome["ok"] and outcome["result"]["seconds"] == 300
+    timers = client.get("/api/events", headers=AUTH).json()["timers"]
+    assert [t["text"] for t in timers] == ["té"]
+    assert not tools.execute("set_timer", {})["ok"]
+
+
+def test_page_can_toggle_holograms():
+    response = client.post("/api/toggle/visualizer", json={"enabled": True}, headers=AUTH)
+    assert response.status_code == 200 and tools.settings["visualizer"]

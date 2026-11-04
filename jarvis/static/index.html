@@ -204,10 +204,20 @@
   <div class="chips" id="modes" hidden>
     <button class="chip" type="button" data-toggle="record" aria-pressed="false">● GRABAR</button>
     <button class="chip" type="button" data-toggle="subtitles" aria-pressed="false">SUBTÍTULOS</button>
-    <button class="chip" type="button" data-toggle="draw" aria-pressed="false">DIBUJO</button>
-    <button class="chip" type="button" data-toggle="globe" aria-pressed="false">ESFERA</button>
     <button class="chip" type="button" data-toggle="guard" aria-pressed="false">GUARDIA</button>
     <button class="chip" type="button" data-toggle="orb" aria-pressed="false">ORBE</button>
+    <button class="chip action" type="button" id="holo-more" aria-expanded="false">HOLOGRAMAS ▾</button>
+  </div>
+  <div class="chips" id="holo-chips" hidden>
+    <button class="chip" type="button" data-toggle="scanner" aria-pressed="false">ESCÁNER</button>
+    <button class="chip" type="button" data-toggle="effects" aria-pressed="false">EFECTOS</button>
+    <button class="chip" type="button" data-toggle="draw" aria-pressed="false">DIBUJO</button>
+    <button class="chip" type="button" data-toggle="globe" aria-pressed="false">ESFERA</button>
+    <button class="chip" type="button" data-toggle="solar" aria-pressed="false">SISTEMA SOLAR</button>
+    <button class="chip" type="button" data-toggle="earth" aria-pressed="false">TIERRA</button>
+    <button class="chip" type="button" data-toggle="keyboard" aria-pressed="false">TECLADO</button>
+    <button class="chip" type="button" data-toggle="notes" aria-pressed="false">NOTAS</button>
+    <button class="chip" type="button" data-toggle="visualizer" aria-pressed="false">VISUALIZADOR</button>
   </div>
   <div class="gauges">
     <div class="gauge"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/><circle class="value" id="g-cpu" cx="20" cy="20" r="16" pathLength="100"/></svg><b id="n-cpu">--</b><span>CPU</span></div>
@@ -1025,7 +1035,7 @@
       record: Boolean(data.recording && data.recording.recording),
       guard: Boolean(data.presence && data.presence.guard),
     });
-    for (const button of modes.querySelectorAll('[data-toggle]')) {
+    for (const button of document.querySelectorAll('[data-toggle]')) {
       const name = button.dataset.toggle;
       if (pendingModes.has(name)) continue;
       button.setAttribute('aria-pressed', String(Boolean(modeState[name])));
@@ -1036,7 +1046,15 @@
     }
   }
 
-  modes.addEventListener('click', async (event) => {
+  const holoChips = document.getElementById('holo-chips');
+  const holoMore = document.getElementById('holo-more');
+  holoMore.addEventListener('click', () => {
+    holoChips.hidden = !holoChips.hidden;
+    holoMore.setAttribute('aria-expanded', String(!holoChips.hidden));
+    holoMore.textContent = holoChips.hidden ? 'HOLOGRAMAS ▾' : 'HOLOGRAMAS ▴';
+  });
+
+  document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-toggle]');
     if (!button || pendingModes.has(button.dataset.toggle)) return;
     const name = button.dataset.toggle;

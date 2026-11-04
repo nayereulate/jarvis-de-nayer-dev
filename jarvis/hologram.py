@@ -21,7 +21,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QApplication, QWidget
 
-from . import tools, winctl
+from . import holoviz, tools, winctl
 from .camera import open_camera
 from .gestures import Engine, HandInput, hand_angle, hand_pose, middle_pinch_ratio, pinch_point, pinch_ratio
 
@@ -43,8 +43,33 @@ VIOLET = QColor(190, 130, 255)
 
 
 class Tracker(QThread):
-    frame_ready = Signal(QImage, list)
+    frame_ready = Signal(QImage, list, list)
     failed = Signal(str)
+    scan = False  # el escáner de identidad pide buscar caras
+
+    def _faces(self, rgb, state):
+        """Caras con nombre, cada 5 cuadros (reconocer es más lento que seguir las manos)."""
+        if not self.scan:
+            return []
+        state["count"] += 1
+        if state["count"] % 5:
+            return state["last"]
+        from .faces import FaceBook, FaceID
+
+        if state.get("face_id") is None:
+            state["face_id"] = FaceID()
+        if time.monotonic() - state.get("book_time", 0) > 30:
+            state["book"], state["book_time"] = FaceBook(), time.monotonic()
+        small = cv2.cvtColor(cv2.resize(rgb, DETECT_SIZE), cv2.COLOR_RGB2BGR)
+        found = []
+        for face in state["face_id"].faces(small)[:3]:
+            feature = state["face_id"].feature(small, face)
+            name = state["book"].match(feature)[0] if feature is not None else None
+            x, y, w, h = face[:4]
+            found.append({"box": (x / DETECT_SIZE[0], y / DETECT_SIZE[1], w / DETECT_SIZE[0], h / DETECT_SIZE[1]),
+                          "name": name, "known": name is not None})
+        state["last"] = found
+        return found
 
     def run(self):
         try:
@@ -63,6 +88,7 @@ class Tracker(QThread):
             print(f"LISTO cámara={name}", flush=True)
             start = time.monotonic()
             last_stamp = -1
+            face_state = {"count": 0, "last": []}
             while not self.isInterruptionRequested():
                 ok, frame = capture.read()
                 if not ok:
@@ -78,8 +104,13 @@ class Tracker(QThread):
                     if any(hand["id"] == hand_id for hand in hands):
                         hand_id += "-2"
                     hands.append({"id": hand_id, "points": [(p.x, p.y) for p in landmarks]})
+                try:
+                    faces = self._faces(rgb, face_state)
+                except Exception as error:
+                    print(f"Escáner sin caras: {error}", flush=True)
+                    faces, self.scan = [], False
                 height, width, _ = rgb.shape
-                self.frame_ready.emit(QImage(rgb.data, width, height, 3 * width, QImage.Format_RGB888).copy(), hands)
+                self.frame_ready.emit(QImage(rgb.data, width, height, 3 * width, QImage.Format_RGB888).copy(), hands, faces)
             capture.release()
         except Exception as error:
             self.failed.emit(str(error))
@@ -97,8 +128,9 @@ class Feed(QThread):
         tick = 0
         psutil.cpu_percent()
         while not self.isInterruptionRequested():
-            data = {"cpu": psutil.cpu_percent(), "ram": psutil.virtual_memory().percent, "messages": [], "modes": None}
-            if tick % 3 == 0:
+            data = {"cpu": psutil.cpu_percent(), "ram": psutil.virtual_memory().percent, "messages": [],
+                    "modes": None, "notes": None}
+            if tick % 6 == 0:
                 gpu = read_gpu()
             data["gpu"] = gpu
             try:
@@ -108,13 +140,65 @@ class Feed(QThread):
                     events = json.load(response)
                 after = events["last"]
                 data["modes"] = events.get("modes")
+                data["notes"] = events.get("notes")
                 data["messages"] = [(event["type"], event["text"]) for event in events["events"]
                                     if event["type"] in ("user", "jarvis") and event.get("text")]
             except Exception:
                 pass  # sin Jarvis, los paneles muestran solo el uso de la PC
             self.updated.emit(data)
             tick += 1
-            self.msleep(1000)
+            self.msleep(500)
+
+
+def call_server(method: str, path: str, body: dict | None = None) -> None:
+    """Avisa al servidor en segundo plano (mover o borrar una nota)."""
+    def send():
+        try:
+            token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+            request = urllib.request.Request(f"{SERVER}{path}", method=method,
+                                             data=json.dumps(body).encode() if body is not None else None,
+                                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+            urllib.request.urlopen(request, timeout=5).close()
+        except Exception as error:
+            print(f"No pude avisar al servidor: {error}", flush=True)
+    threading.Thread(target=send, daemon=True).start()
+
+
+class Floating:
+    """Lo que flota y se pellizca (teclado y notas). Engine da píxeles de pantalla; aquí se pasan a la ventana."""
+
+    def __init__(self, keyboard, notes, flags, to_window):
+        self.keyboard, self.notes, self.flags, self.to_window = keyboard, notes, flags, to_window
+
+    def hit(self, point):
+        p = self.to_window(point)
+        if self.flags.get("keyboard"):
+            key = self.keyboard.hit(p)
+            if key is not None:
+                return ("key", key)
+        if self.flags.get("notes"):
+            note_id = self.notes.hit(p)
+            if note_id is not None:
+                return ("note", note_id)
+        return None
+
+    def press(self, token, point):
+        kind, value = token
+        if kind == "key":
+            self.keyboard.press(value)
+        else:
+            self.notes.press(value, self.to_window(point))
+
+    def drag(self, token, point):
+        if token[0] == "note":
+            self.notes.drag(token[1], self.to_window(point))
+
+    def release(self, token, point):
+        if token[0] == "note":
+            self.notes.release(token[1])
+
+    def fist(self, point):
+        return bool(self.flags.get("notes")) and self.notes.erase_at(self.to_window(point))
 
 
 def read_gpu():
@@ -228,6 +312,7 @@ class Overlay(QWidget):
         self.strokes = []  # en coordenadas de esta ventana
         self.globe = None  # dict de Engine.globe cuando la esfera está a la vista
         self.knob = None  # (punto, nivel)
+        self.extras = lambda painter: None  # los hologramas de holoviz
         self.font = QFont("Consolas", 11)
         self.big = QFont("Consolas", 30)
         self.small = QFont("Consolas", 9)
@@ -238,6 +323,7 @@ class Overlay(QWidget):
         self._draw_strokes(painter)
         if self.globe:
             self._draw_globe(painter)
+        self.extras(painter)
         if self.knob:
             self._draw_knob(painter)
         for points, pointer, pinch in self.hands:
@@ -406,9 +492,50 @@ def main():
     except Exception as error:
         print(f"Sin control de volumen: {error}", flush=True)
         volume = None
-    engine = Engine(winctl.Windows(exclude={int(background.winId()), int(overlay.winId())}), winctl.Cursor(),
-                    keys=press, work_area=winctl.work_area(), volume=volume)
     to_window = lambda p: (p[0] / ratio - geometry.x(), p[1] / ratio - geometry.y())
+    flags = {}
+    in_thread = lambda function: threading.Thread(target=function, daemon=True).start()
+    solar, earth, effects, scanner = holoviz.SolarSystem(), holoviz.Earth(), holoviz.Effects(), holoviz.Scanner()
+    audio = holoviz.AudioLevels()
+    keyboard = holoviz.Keyboard(lambda text: in_thread(lambda: tools.type_text(text)),
+                                lambda keys: in_thread(lambda: tools.press_keys(keys)))
+    notes = holoviz.Notes(lambda note_id, x, y: call_server("POST", f"/api/notes/{note_id}/move", {"x": x, "y": y}),
+                          lambda note_id: call_server("DELETE", f"/api/notes/{note_id}"))
+    notes.size = (overlay.width(), overlay.height())
+    keyboard.layout(overlay.width(), overlay.height())
+
+    def open_menu_item(index):
+        _, kind, target = holoviz.MENU_ITEMS[index]
+        in_thread(lambda: tools.open_app(target) if kind == "app" else tools.open_url(target))
+
+    engine = Engine(winctl.Windows(exclude={int(background.winId()), int(overlay.winId())}), winctl.Cursor(),
+                    keys=press, work_area=winctl.work_area(), volume=volume,
+                    ui=Floating(keyboard, notes, flags, to_window),
+                    menu=(len(holoviz.MENU_ITEMS), open_menu_item))
+    state = {"faces": [], "earth_faced": False, "earth_loading": False}
+
+    def draw_extras(painter):
+        width, height = overlay.width(), overlay.height()
+        view = engine.globe
+        if flags.get("solar"):
+            solar.draw(painter, width, height, view)
+        if flags.get("earth"):
+            earth.draw(painter, width, height, view)
+        if flags.get("visualizer"):
+            holoviz.draw_visualizer(painter, width, height, audio.bands)
+        if flags.get("notes"):
+            notes.draw(painter)
+        if flags.get("keyboard"):
+            hover = to_window(engine.points[engine.primary]) if engine.primary in engine.points else None
+            keyboard.draw(painter, hover)
+        if engine.menu is not None:
+            holoviz.draw_menu(painter, to_window(engine.menu["center"]), engine.menu["selected"])
+        if flags.get("effects"):
+            effects.draw(painter)
+        if flags.get("scanner"):
+            scanner.draw(painter, state["faces"])
+
+    overlay.extras = draw_extras
 
     def keep_background():
         # Si algo lo minimizó o lo escondió (por ejemplo, Win+D), vuelve a mostrarse.
@@ -429,7 +556,7 @@ def main():
 
     stats = {"frames": 0, "since": time.monotonic()}
 
-    def on_frame(image, hands):
+    def on_frame(image, hands, faces):
         now = time.monotonic()
         drawn, inputs = [], []
         for hand in hands:
@@ -445,11 +572,24 @@ def main():
             if hand_id in engine.points:
                 x, y = engine.points[hand_id]
                 pointer = (x / ratio - geometry.x(), y / ratio - geometry.y())
-                state = "left" if engine.pinching.get(hand_id) else "right" if engine.right_pinching.get(hand_id) else ""
-                overlay.hands.append((points, pointer, state))
+                pinch = "left" if engine.pinching.get(hand_id) else "right" if engine.right_pinching.get(hand_id) else ""
+                overlay.hands.append((points, pointer, pinch))
         overlay.status = engine.status
         overlay.strokes = [[to_window(p) for p in stroke] for stroke in engine.strokes]
-        overlay.globe = engine.globe if engine.globe_mode else None
+        overlay.globe = engine.globe if flags.get("globe") else None
+        if engine.tap and flags.get("solar"):
+            solar.tap(to_window(engine.tap[0]))
+        engine.tap = None
+        if flags.get("effects"):
+            effects.update([(hand_id, points, engine.poses.get(hand_id, ("other", 0))[0]) for hand_id, points in drawn])
+        if flags.get("scanner"):
+            state["faces"] = []
+            for face in faces:
+                x, y, w, h = face["box"]
+                left, top = mapper(x, y)
+                right, bottom = mapper(x + w, y + h)
+                state["faces"].append({"rect": QRectF(left, top, right - left, bottom - top),
+                                       "name": face["name"], "known": face["known"]})
         overlay.knob = (to_window(engine.knob[0]), engine.knob[1]) if engine.knob else None
         background.image = image
         background.update()
@@ -465,11 +605,35 @@ def main():
 
     def on_feed(data):
         overlay.stats = data
+        if data["notes"] is not None:
+            notes.update_from_server(data["notes"])
         if data["modes"] is not None:
-            engine.draw_mode = data["modes"].get("draw", False)
-            engine.globe_mode = data["modes"].get("globe", False)
+            modes = data["modes"]
+            flags.clear()
+            flags.update(modes)
+            engine.draw_mode = modes.get("draw", False)
+            engine.globe_mode = any(modes.get(name) for name in ("globe", "solar", "earth"))
+            engine.effects_mode = modes.get("effects", False)
+            tracker.scan = modes.get("scanner", False)
             if not engine.draw_mode:
                 engine.strokes = []
+            if modes.get("visualizer") and not audio.running:
+                in_thread(audio.run)
+            elif not modes.get("visualizer"):
+                audio.running = False
+            if modes.get("earth"):
+                if not state["earth_loading"]:
+                    state["earth_loading"] = True
+                    in_thread(earth.load)
+                earth.want_cities(modes.get("earth_cities", []), in_thread)
+                engine.globe["idle"] = 0.03  # la Tierra gira despacio, para poder leerla
+                if earth.home and not state["earth_faced"]:
+                    engine.globe["yaw"], engine.globe["pitch"] = holoviz.face_view(earth.home["lat"], earth.home["lon"])
+                    engine.globe["spin"] = 0.0
+                    state["earth_faced"] = True
+            else:
+                engine.globe.pop("idle", None)
+                state["earth_faced"] = False
         for who, text in data["messages"]:
             overlay.message = (who, text, time.monotonic())
         overlay.update()
