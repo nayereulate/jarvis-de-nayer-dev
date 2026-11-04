@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#02070d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icon-192.png">
+<title>Jarvis</title>
+<style>
+  :root {
+    --cyan: #4fd8ff;
+    --cyan-dim: rgba(79, 216, 255, .35);
+    --cyan-faint: rgba(79, 216, 255, .1);
+    --amber: #ffb547;
+    --red: #ff4d5e;
+    --text: #d8f3ff;
+    --muted: #6f9db3;
+    --panel: rgba(6, 22, 34, .72);
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { height: 100%; background: radial-gradient(ellipse at 50% 18%, #0b2b3f 0%, #02070d 62%) fixed #02070d; }
+  body {
+    display: flex; flex-direction: column; height: 100dvh; max-width: 820px; margin: 0 auto;
+    padding: max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
+    overflow: hidden; color: var(--text); font: 15px/1.45 "Segoe UI", system-ui, sans-serif;
+  }
+  body::before, body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1; }
+  body::before {
+    background-image: linear-gradient(var(--cyan-faint) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--cyan-faint) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at 50% 30%, #000 0%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 0%, transparent 70%);
+  }
+  body::after {
+    z-index: 10;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .18) 0 1px, transparent 1px 3px);
+    opacity: .5;
+  }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+           font: 12px var(--mono); letter-spacing: .18em; color: var(--muted); }
+  .brand { color: var(--cyan); font-size: 15px; letter-spacing: .32em; text-shadow: 0 0 10px var(--cyan-dim); }
+  #state-label { padding: 2px 10px; border: 1px solid var(--cyan-dim); color: var(--cyan); transition: color .3s, border-color .3s; }
+  #state-label::before { content: "● "; animation: blink 1.6s steps(2) infinite; }
+
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 4px 0 6px; }
+  #reactor {
+    --level: 0; --accent: var(--cyan); --speed: 1;
+    position: relative; width: clamp(140px, 30vh, 240px); aspect-ratio: 1; padding: 0; border: 0;
+    background: none; color: var(--accent); cursor: pointer; border-radius: 50%;
+    filter: drop-shadow(0 0 14px var(--cyan-dim)); transition: color .4s, filter .4s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #reactor:focus-visible { outline: 1px dashed var(--cyan); outline-offset: 6px; }
+  #reactor svg { width: 100%; height: 100%; overflow: visible; }
+  .boot, .r, .core-breath, .core-level { transform-box: fill-box; transform-origin: center; }
+  .r { fill: none; stroke: currentColor; }
+  .r1 { stroke-width: 1; stroke-dasharray: 2 5; opacity: .6; animation: spin calc(40s * var(--speed)) linear infinite; }
+  .r2 { stroke-width: 7; stroke-dasharray: 1 3; opacity: .35; animation: spin calc(70s * var(--speed)) linear infinite reverse; }
+  .r3 { stroke-width: 2.5; stroke-dasharray: 90 18 30 18 60 18 40 18; animation: spin calc(14s * var(--speed)) linear infinite; }
+  .r4 { stroke-width: 9; stroke-dasharray: 20 5; opacity: .5; animation: spin calc(26s * var(--speed)) linear infinite reverse; }
+  .r5 { stroke-width: 1.2; opacity: .8; }
+  .core-breath { animation: breathe 3.2s ease-in-out infinite; }
+  .core-level { transform: scale(calc(1 + var(--level) * .7)); transition: transform .08s linear; }
+  .boot { animation: boot .9s cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--d, 0s); }
+
+  body[data-state="listening"] #reactor { --accent: #b8f3ff; filter: drop-shadow(0 0 26px rgba(120, 230, 255, .7)); }
+  body[data-state="thinking"] #reactor { --accent: var(--amber); --speed: .22; filter: drop-shadow(0 0 20px rgba(255, 181, 71, .5)); }
+  body[data-state="error"] #reactor { --accent: var(--red); filter: drop-shadow(0 0 20px rgba(255, 77, 94, .6)); }
+  body[data-state="speaking"] #reactor { --accent: #8be9ff; --speed: .55; filter: drop-shadow(0 0 24px rgba(79, 216, 255, .65)); }
+  #voice-toggle { padding: 2px 8px; border: 1px solid var(--cyan-dim); background: none; color: var(--cyan);
+                  font: 12px var(--mono); letter-spacing: .14em; }
+  #voice-toggle[aria-pressed="false"] { color: var(--muted); border-color: rgba(111, 157, 179, .35); }
+  @media (max-width: 420px) { #clock { display: none; } }
+  body[data-state="thinking"] #state-label { color: var(--amber); border-color: rgba(255, 181, 71, .5); }
+  body[data-state="error"] #state-label { color: var(--red); border-color: rgba(255, 77, 94, .5); }
+
+  .hint { margin: 0; font: 11px var(--mono); letter-spacing: .2em; color: var(--muted); text-transform: uppercase; }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  .chip { padding: 2px 10px; border: 1px solid var(--cyan-dim); background: none; color: var(--cyan);
+          font: 11px var(--mono); letter-spacing: .14em; }
+  .chip[aria-pressed="false"] { color: var(--muted); border-color: rgba(111, 157, 179, .35); }
+  .chip.failed { color: var(--red); border-color: rgba(255, 77, 94, .5); }
+  .gauges { display: flex; gap: 22px; }
+  .gauge { position: relative; width: 58px; text-align: center; font-family: var(--mono); }
+  .gauge svg { width: 58px; height: 58px; transform: rotate(-90deg); }
+  .gauge circle { fill: none; stroke-width: 3; }
+  .gauge .track { stroke: var(--cyan-faint); }
+  .gauge .value { stroke: var(--cyan); stroke-dasharray: 0 100; transition: stroke-dasharray .8s ease, stroke .4s; }
+  .gauge .value.high { stroke: var(--amber); }
+  .gauge b { position: absolute; top: 19px; left: 0; right: 0; font-size: 13px; font-weight: 600; }
+  .gauge span { display: block; font-size: 10px; letter-spacing: .2em; color: var(--muted); }
+
+  #log {
+    flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 2px;
+    mask-image: linear-gradient(transparent, #000 18px); -webkit-mask-image: linear-gradient(transparent, #000 18px);
+  }
+  .msg { max-width: 88%; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .25s ease-out both;
+         clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+  .msg small { display: block; margin-bottom: 2px; font: 10px var(--mono); letter-spacing: .22em; opacity: .7; }
+  .user { align-self: flex-end; background: rgba(79, 216, 255, .16); border-right: 2px solid var(--cyan); }
+  .jarvis { align-self: flex-start; background: var(--panel); border-left: 2px solid var(--cyan); }
+  .error { align-self: flex-start; background: rgba(255, 77, 94, .14); border-left: 2px solid var(--red); }
+  .confirm { align-self: stretch; padding: 10px 12px; border: 1px solid rgba(255, 181, 71, .6); background: rgba(255, 181, 71, .07);
+             animation: rise .25s ease-out both; }
+  .confirm > div { font: 11px var(--mono); letter-spacing: .2em; color: var(--amber); }
+  pre { margin: 6px 0; padding: 8px; background: rgba(0, 0, 0, .45); white-space: pre-wrap; overflow-wrap: anywhere; font: 13px var(--mono); }
+
+  button { font: inherit; color: var(--text); cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  .hud-btn { padding: 9px 14px; border: 1px solid var(--cyan-dim); background: rgba(79, 216, 255, .08);
+             letter-spacing: .08em; transition: background .15s, box-shadow .15s; }
+  .hud-btn:hover:not(:disabled) { background: rgba(79, 216, 255, .18); box-shadow: 0 0 12px var(--cyan-dim) inset; }
+  .hud-btn.hit { background: rgba(79, 216, 255, .4); }
+  .hud-btn.approve { border-color: var(--cyan); }
+  .hud-btn.deny, #quick .power { border-color: rgba(255, 77, 94, .55); background: rgba(255, 77, 94, .08); }
+
+  #quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  #quick button { min-width: 0; min-height: 42px; padding: 4px 2px; font-size: 12px; letter-spacing: 0; overflow-wrap: anywhere; }
+  @media (max-width: 420px) { #quick button { font-size: 11px; } }
+  form { display: flex; gap: 8px; margin-top: 8px; }
+  input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid var(--cyan-dim); background: rgba(2, 12, 20, .8);
+          color: inherit; font: inherit; outline: none; transition: box-shadow .2s; }
+  input:focus { box-shadow: 0 0 0 1px var(--cyan), 0 0 14px var(--cyan-dim); }
+
+  .chip.action { border-style: dashed; }
+  .chip[data-toggle="record"][aria-pressed="true"] { color: var(--red); border-color: var(--red); animation: blink 1.2s steps(2) infinite; }
+  @media (max-width: 420px) { .chips { gap: 4px; } .chip { padding: 2px 6px; font-size: 10px; letter-spacing: .06em; } }
+  .panel { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; gap: 8px;
+           padding: max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
+           background: rgba(2, 7, 13, .97); animation: rise .2s ease-out both; }
+  .panel[hidden] { display: none; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+                font: 12px var(--mono); letter-spacing: .2em; color: var(--cyan); }
+  .panel-head small { color: var(--muted); letter-spacing: .1em; }
+  #screen-view { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+                 border: 1px solid var(--cyan-dim); background: #000; }
+  #screen-img { display: block; max-width: 100%; max-height: 100%; touch-action: manipulation;
+                -webkit-touch-callout: none; user-select: none; cursor: crosshair; }
+  .tools-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tools-row .hud-btn { flex: 1; min-width: 0; padding: 8px 4px; font-size: 12px; }
+  #files-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .file { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--cyan-dim);
+          background: var(--panel); }
+  .file span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .file small { color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  #upload-input { display: none; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes breathe { 50% { opacity: .78; transform: scale(.93); } }
+  @keyframes boot { from { opacity: 0; transform: scale(.4) rotate(-120deg); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes blink { 50% { opacity: .2; } }
+  @media (max-height: 640px) { .gauges { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body data-state="idle">
+<header>
+  <span class="brand">J.A.R.V.I.S.</span>
+  <span id="state-label">EN LÍNEA</span>
+  <button id="voice-toggle" type="button" aria-pressed="true">VOZ ON</button>
+  <time id="clock"></time>
+</header>
+
+<section class="stage">
+  <button id="reactor" type="button" aria-label="Hablar con Jarvis">
+    <svg viewBox="0 0 200 200" aria-hidden="true">
+      <defs>
+        <radialGradient id="glow">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset=".35" stop-color="currentColor" stop-opacity=".9"/>
+          <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <g class="boot" style="--d:.05s"><circle class="r r1" cx="100" cy="100" r="96"/></g>
+      <g class="boot" style="--d:.15s"><circle class="r r2" cx="100" cy="100" r="86"/></g>
+      <g class="boot" style="--d:.25s"><circle class="r r3" cx="100" cy="100" r="74"/></g>
+      <g class="boot" style="--d:.35s"><circle class="r r4" cx="100" cy="100" r="61"/></g>
+      <g class="boot" style="--d:.45s"><circle class="r r5" cx="100" cy="100" r="50"/></g>
+      <g class="boot" style="--d:.55s">
+        <g class="core-breath"><g class="core-level">
+          <circle cx="100" cy="100" r="44" fill="url(#glow)"/>
+          <circle cx="100" cy="100" r="15" fill="#effcff"/>
+        </g></g>
+      </g>
+    </svg>
+  </button>
+  <p class="hint" id="hint">Toca el núcleo para hablar</p>
+  <div class="chips">
+    <button id="listener-toggle" class="chip" type="button" aria-pressed="false" hidden>ESCUCHA PC</button>
+    <button id="hologram-toggle" class="chip" type="button" aria-pressed="false" hidden>HOLOGRAMA: OFF</button>
+    <button id="presence-toggle" class="chip" type="button" aria-pressed="false" hidden>PRESENCIA</button>
+    <button id="dictation-toggle" class="chip" type="button" aria-pressed="false" hidden>DICTADO: OFF</button>
+    <button id="screen-open" class="chip action" type="button">PANTALLA</button>
+    <button id="files-open" class="chip action" type="button">ARCHIVOS</button>
+    <button id="push-toggle" class="chip" type="button" aria-pressed="false" hidden>NOTIFICACIONES: OFF</button>
+  </div>
+  <div class="chips" id="modes" hidden>
+    <button class="chip" type="button" data-toggle="record" aria-pressed="false">● GRABAR</button>
+    <button class="chip" type="button" data-toggle="subtitles" aria-pressed="false">SUBTÍTULOS</button>
+    <button class="chip" type="button" data-toggle="draw" aria-pressed="false">DIBUJO</button>
+    <button class="chip" type="button" data-toggle="globe" aria-pressed="false">ESFERA</button>
+    <button class="chip" type="button" data-toggle="guard" aria-pressed="false">GUARDIA</button>
+    <button class="chip" type="button" data-toggle="orb" aria-pressed="false">ORBE</button>
+  </div>
+  <div class="gauges">
+    <div class="gauge"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/><circle class="value" id="g-cpu" cx="20" cy="20" r="16" pathLength="100"/></svg><b id="n-cpu">--</b><span>CPU</span></div>
+    <div class="gauge"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/><circle class="value" id="g-ram" cx="20" cy="20" r="16" pathLength="100"/></svg><b id="n-ram">--</b><span>RAM</span></div>
+    <div class="gauge"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/><circle class="value" id="g-disk" cx="20" cy="20" r="16" pathLength="100"/></svg><b id="n-disk">--</b><span>DISCO</span></div>
+  </div>
+</section>
+
+<div id="log" aria-live="polite"></div>
+
+<div id="quick">
+  <button class="hud-btn" type="button" data-quick="volume_down">Vol −</button>
+  <button class="hud-btn" type="button" data-quick="volume_up">Vol +</button>
+  <button class="hud-btn" type="button" data-quick="mute">Silencio</button>
+  <button class="hud-btn" type="button" data-quick="play_pause">Pausa</button>
+  <button class="hud-btn" type="button" data-quick="lock">Bloquear</button>
+  <button class="hud-btn" type="button" data-quick="previous">Anterior</button>
+  <button class="hud-btn" type="button" data-quick="next">Siguiente</button>
+  <button class="hud-btn" type="button" data-chat="Dime el estado de la PC: CPU, RAM y disco.">Estado</button>
+  <button class="hud-btn power" type="button" data-chat="Apaga la PC.">Apagar</button>
+  <button class="hud-btn power" type="button" data-chat="Reinicia la PC.">Reiniciar</button>
+</div>
+<form id="form">
+  <input id="input" autocomplete="off" placeholder="Escribe una orden" aria-label="Mensaje">
+  <button id="send" class="hud-btn">Enviar</button>
+</form>
+
+<section id="screen-panel" class="panel" hidden aria-label="Pantalla de la PC">
+  <div class="panel-head">
+    <span>PANTALLA EN VIVO <small id="screen-info"></small></span>
+    <button class="hud-btn" type="button" data-close="screen-panel">Cerrar</button>
+  </div>
+  <div id="screen-view"><img id="screen-img" alt="Pantalla de la PC; toca para hacer clic, mantén pulsado para clic derecho"></div>
+  <div class="tools-row">
+    <button class="hud-btn" type="button" data-scroll="5">▲ Subir</button>
+    <button class="hud-btn" type="button" data-scroll="-5">▼ Bajar</button>
+    <button class="hud-btn" type="button" data-keys="enter">Enter</button>
+    <button class="hud-btn" type="button" data-keys="backspace">⌫</button>
+    <button class="hud-btn" type="button" data-keys="esc">Esc</button>
+    <button class="hud-btn" type="button" data-keys="alt+tab">Alt+Tab</button>
+  </div>
+  <form id="remote-form">
+    <input id="remote-input" autocomplete="off" placeholder="Escribir en la PC" aria-label="Texto para escribir en la PC">
+    <button class="hud-btn">Escribir</button>
+  </form>
+</section>
+
+<section id="files-panel" class="panel" hidden aria-label="Archivos">
+  <div class="panel-head">
+    <span>ARCHIVOS <small>Descargas\Jarvis en la PC</small></span>
+    <button class="hud-btn" type="button" data-close="files-panel">Cerrar</button>
+  </div>
+  <div id="files-list"></div>
+  <label class="hud-btn" for="upload-input" style="text-align:center">Enviar archivos a la PC</label>
+  <input id="upload-input" type="file" multiple>
+</section>
+
+<script>
+  const log = document.getElementById('log');
+  const form = document.getElementById('form');
+  const input = document.getElementById('input');
+  const send = document.getElementById('send');
+  const reactor = document.getElementById('reactor');
+  const hint = document.getElementById('hint');
+  const stateLabel = document.getElementById('state-label');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const STATES = {
+    idle: ['EN LÍNEA', 'Toca el núcleo para hablar'],
+    listening: ['ESCUCHANDO', 'Toca el núcleo para terminar'],
+    transcribing: ['TRANSCRIBIENDO', 'Procesando tu voz'],
+    speaking: ['HABLANDO', 'Toca el núcleo para interrumpir y hablar'],
+    thinking: ['PROCESANDO', 'Un momento'],
+    error: ['ERROR', 'Toca el núcleo para hablar'],
+  };
+
+  const linkedToken = new URLSearchParams(location.hash.slice(1)).get('token');
+  if (linkedToken) {
+    localStorage.setItem('jarvis-token', linkedToken);
+    history.replaceState(null, '', location.pathname);
+  }
+  let token = localStorage.getItem('jarvis-token');
+  let recorder = null;
+  let busy = false;
+  let errorTimer = null;
+  let sharedAudio = null;
+  let currentAudio = null;
+  let voiceOn = localStorage.getItem('jarvis-voice') !== 'off';
+  const voiceToggle = document.getElementById('voice-toggle');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+
+  function setState(state) {
+    clearTimeout(errorTimer);
+    document.body.dataset.state = state === 'transcribing' ? 'thinking' : state;
+    [stateLabel.textContent, hint.textContent] = STATES[state];
+    if (state === 'error') errorTimer = setTimeout(() => setState(busy ? 'thinking' : 'idle'), 1800);
+  }
+
+  function typeInto(node, text) {
+    if (reducedMotion || text.length < 4) {
+      node.textContent = text;
+      return;
+    }
+    const step = Math.max(1, Math.ceil(text.length / 70));
+    let shown = 0;
+    const timer = setInterval(() => {
+      shown += step;
+      node.textContent = text.slice(0, shown);
+      log.scrollTop = log.scrollHeight;
+      if (shown >= text.length) clearInterval(timer);
+    }, 18);
+  }
+
+  function add(text, kind) {
+    const node = document.createElement('div');
+    node.className = 'msg ' + kind;
+    const label = document.createElement('small');
+    label.textContent = { user: 'TÚ', jarvis: 'JARVIS', error: 'SISTEMA' }[kind];
+    const body = document.createElement('span');
+    node.append(label, body);
+    log.append(node);
+    if (kind === 'jarvis') typeInto(body, text);
+    else body.textContent = text;
+    if (kind === 'error') setState('error');
+    log.scrollTop = log.scrollHeight;
+    return node;
+  }
+
+  function setBusy(value, state = 'thinking') {
+    busy = value;
+    send.disabled = value;
+    send.textContent = value ? '···' : 'Enviar';
+    setState(value ? state : 'idle');
+  }
+
+  async function api(path, body) {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(body),
+    });
+    if (response.status === 401) {
+      localStorage.removeItem('jarvis-token');
+      token = null;
+      throw new Error('Token inválido. Escribe el token correcto como tu siguiente mensaje.');
+    }
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Error del servidor');
+    return data;
+  }
+
+  async function apiGet(path) {
+    const response = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Error del servidor');
+    return data;
+  }
+
+  function showReply(reply, spoken = true) {
+    if (reply.say) {
+      add(reply.say, 'jarvis');
+      if (spoken) speak(reply.say);
+    }
+    if (!reply.pending) return;
+    const box = document.createElement('div');
+    box.className = 'confirm';
+    const title = document.createElement('div');
+    title.textContent = 'AUTORIZACIÓN REQUERIDA';
+    box.append(title);
+    for (const action of reply.pending.actions) {
+      const pre = document.createElement('pre');
+      pre.textContent = action.tool + '\n' + JSON.stringify(action.args, null, 2);
+      box.append(pre);
+    }
+    const approve = document.createElement('button');
+    approve.className = 'hud-btn approve';
+    approve.textContent = 'Aprobar';
+    const deny = document.createElement('button');
+    deny.className = 'hud-btn deny';
+    deny.textContent = 'Rechazar';
+    deny.style.marginLeft = '8px';
+    const answer = (approved) => {
+      approve.disabled = deny.disabled = true;
+      run(() => api('/api/confirm/' + reply.pending.id, { approved }));
+    };
+    approve.onclick = () => answer(true);
+    deny.onclick = () => answer(false);
+    box.append(approve, deny);
+    log.append(box);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function run(request) {
+    setBusy(true);
+    try {
+      const reply = await request();
+      setBusy(false);
+      showReply(reply);
+    } catch (error) {
+      setBusy(false);
+      add(error.message, 'error');
+    }
+  }
+
+  async function transcribe(blob) {
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: blob,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Error al transcribir');
+    return data.text;
+  }
+
+  // El navegador solo deja sonar audio después de que el usuario toque la página.
+  function audioContext() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!sharedAudio) sharedAudio = new AudioContextClass();
+    if (sharedAudio.state === 'suspended') sharedAudio.resume();
+    return sharedAudio;
+  }
+  document.addEventListener('pointerdown', audioContext);
+  document.addEventListener('keydown', audioContext);
+
+  function followLevel(source, gain, onLevel) {
+    const context = audioContext();
+    if (!context) return () => {};
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    let frame;
+    const tick = () => {
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) sum += ((sample - 128) / 128) ** 2;
+      const rms = Math.sqrt(sum / samples.length);
+      reactor.style.setProperty('--level', Math.min(1, rms * gain).toFixed(3));
+      if (onLevel) onLevel(rms);
+      frame = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => {
+      cancelAnimationFrame(frame);
+      reactor.style.setProperty('--level', 0);
+      source.disconnect(analyser);
+    };
+  }
+
+  function trackLevel(stream, onLevel) {
+    const context = audioContext();
+    return context ? followLevel(context.createMediaStreamSource(stream), 5, onLevel) : () => {};
+  }
+
+  // Decide cuándo terminó la orden: voz y luego un silencio. Mismos tiempos que la escucha de la PC.
+  function endpointer(onDone) {
+    const started = performance.now();
+    let noise = null;
+    let heard = false;
+    let quietSince = null;
+    let done = false;
+    const finish = (gotSpeech) => {
+      if (!done) {
+        done = true;
+        onDone(gotSpeech);
+      }
+    };
+    return (rms) => {
+      const now = performance.now();
+      const elapsed = now - started;
+      if (done || elapsed < 250) return;
+      // Con tope, para no tomar como ruido una orden que empieza enseguida.
+      if (noise === null) noise = Math.min(rms, 0.007);
+      const loud = rms > Math.max(noise * 3, 0.02);
+      if (loud) {
+        heard = true;
+        quietSince = null;
+      } else if (heard) {
+        if (quietSince === null) quietSince = now;
+        if (now - quietSince >= 1000) finish(true);
+      } else {
+        noise = noise * 0.95 + rms * 0.05;
+        if (elapsed >= 6000) finish(false);
+      }
+      if (elapsed >= 20000) finish(heard);
+    };
+  }
+
+  function setVoice(on) {
+    voiceOn = on;
+    localStorage.setItem('jarvis-voice', on ? 'on' : 'off');
+    voiceToggle.textContent = on ? 'VOZ ON' : 'VOZ OFF';
+    voiceToggle.setAttribute('aria-pressed', String(on));
+    if (!on) stopSpeaking();
+  }
+
+  function stopSpeaking() {
+    if (currentAudio) currentAudio.pause();
+  }
+
+  async function speak(text) {
+    if (!voiceOn) return;
+    stopSpeaking();
+    let audio;
+    let stopLevel = () => {};
+    let url;
+    const finish = () => {
+      stopLevel();
+      stopLevel = () => {};
+      if (url) URL.revokeObjectURL(url);
+      if (currentAudio === audio) {
+        currentAudio = null;
+        if (document.body.dataset.state === 'speaking') setState('idle');
+      }
+    };
+    try {
+      const response = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok || !voiceOn || busy) return;
+      url = URL.createObjectURL(await response.blob());
+      audio = new Audio(url);
+      currentAudio = audio;
+      const context = audioContext();
+      // Si el contexto sigue suspendido, pasar el audio por él lo dejaría en silencio.
+      if (context && context.state === 'running') {
+        const source = context.createMediaElementSource(audio);
+        source.connect(context.destination);
+        stopLevel = followLevel(source, 3);
+      }
+      audio.onended = audio.onpause = audio.onerror = finish;
+      setState('speaking');
+      await audio.play();
+    } catch (error) {
+      // Sin voz: la respuesta ya está escrita en pantalla.
+      finish();
+    }
+  }
+
+  voiceToggle.addEventListener('click', () => setVoice(!voiceOn));
+  setVoice(voiceOn);
+
+  async function startRecording() {
+    stopSpeaking();
+    if (!token) {
+      add('Primero pega el token.', 'error');
+      return;
+    }
+    if (!navigator.mediaDevices) {
+      add('Este navegador no permite usar el micrófono en esta dirección.', 'error');
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+      add('No pude usar el micrófono. Revisa el permiso del navegador.', 'error');
+      return;
+    }
+    const chunks = [];
+    let heardSomething = true;
+    const stopLevel = trackLevel(stream, endpointer((gotSpeech) => {
+      heardSomething = gotSpeech;
+      if (recorder.state === 'recording') recorder.stop();
+    }));
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (event) => chunks.push(event.data);
+    recorder.onstop = async () => {
+      stopLevel();
+      stream.getTracks().forEach((track) => track.stop());
+      if (!heardSomething) {
+        setState('idle');
+        add('No escuché nada. Toca el núcleo para intentarlo de nuevo.', 'error');
+        return;
+      }
+      setBusy(true, 'transcribing');
+      let text;
+      try {
+        text = await transcribe(new Blob(chunks, { type: recorder.mimeType }));
+      } catch (error) {
+        setBusy(false);
+        add(error.message, 'error');
+        return;
+      }
+      setBusy(false);
+      if (!text) {
+        add('No escuché ninguna orden. Inténtalo de nuevo.', 'error');
+        return;
+      }
+      add(text, 'user');
+      run(() => api('/api/chat', { message: text }));
+    };
+    recorder.start();
+    setState('listening');
+  }
+
+  reactor.addEventListener('click', () => {
+    if (recorder && recorder.state === 'recording') recorder.stop();
+    else if (!busy) startRecording();
+  });
+
+  document.getElementById('quick').addEventListener('click', async (event) => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    if (!token) {
+      add('Primero pega el token.', 'error');
+      return;
+    }
+    if (button.dataset.chat) {
+      if (busy) return;
+      add(button.textContent, 'user');
+      run(() => api('/api/chat', { message: button.dataset.chat }));
+      return;
+    }
+    button.classList.add('hit');
+    setTimeout(() => button.classList.remove('hit'), 180);
+    try {
+      await api('/api/quick/' + button.dataset.quick, {});
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text || busy) return;
+    input.value = '';
+    if (!token) {
+      token = text;
+      localStorage.setItem('jarvis-token', token);
+      add('Token guardado. Sistemas en línea.', 'jarvis');
+      refreshStatus();
+      return;
+    }
+    add(text, 'user');
+    run(() => api('/api/chat', { message: text }));
+  });
+
+  function setGauge(name, percent) {
+    const value = Math.round(percent);
+    const ring = document.getElementById('g-' + name);
+    ring.style.strokeDasharray = value + ' 100';
+    ring.classList.toggle('high', value >= 85);
+    document.getElementById('n-' + name).textContent = value + '%';
+  }
+
+  async function refreshStatus() {
+    if (!token || document.hidden) return;
+    try {
+      const response = await fetch('/api/status', { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!response.ok) return;
+      const status = await response.json();
+      setGauge('cpu', status.cpu_percent);
+      setGauge('ram', status.ram_percent);
+      setGauge('disk', status.disk_percent);
+    } catch (error) {
+      // La PC no respondió; los medidores conservan el último valor.
+    }
+  }
+
+  function tickClock() {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  tickClock();
+  setInterval(tickClock, 15000);
+  refreshStatus();
+  setInterval(refreshStatus, 4000);
+
+  // Lo que se habla con la escucha de la PC aparece aquí. La PC ya lo dice por sus altavoces.
+  const listenerToggle = document.getElementById('listener-toggle');
+  const LISTENER_LABELS = {
+    wake: 'ESCUCHA PC: «HEY JARVIS»', listening: 'ESCUCHA PC: OYENDO', thinking: 'ESCUCHA PC: PROCESANDO',
+    speaking: 'ESCUCHA PC: HABLANDO', paused: 'ESCUCHA PC: PAUSADA', error: 'ESCUCHA PC: ERROR', off: 'ESCUCHA PC: INICIANDO',
+    dictating: 'ESCUCHA PC: DICTANDO',
+  };
+  const LISTENER_STATES = { listening: 'listening', thinking: 'thinking', speaking: 'speaking' };
+  let lastEvent = -1;
+  let listenerEnabled = true;
+
+  function showListener(listener) {
+    listenerEnabled = listener.enabled;
+    listenerToggle.hidden = false;
+    listenerToggle.textContent = listener.enabled ? LISTENER_LABELS[listener.state] || 'ESCUCHA PC' : LISTENER_LABELS.paused;
+    listenerToggle.setAttribute('aria-pressed', String(listener.enabled));
+    listenerToggle.classList.toggle('failed', listener.state === 'error');
+    const pageIsFree = !busy && !currentAudio && !(recorder && recorder.state === 'recording');
+    const current = document.body.dataset.state;
+    if (pageIsFree && current !== 'error') setState(LISTENER_STATES[listener.state] || 'idle');
+  }
+
+  async function pollEvents() {
+    if (token && !document.hidden) {
+      try {
+        const response = await fetch('/api/events?after=' + lastEvent, { headers: { 'Authorization': 'Bearer ' + token } });
+        if (response.ok) {
+          const data = await response.json();
+          for (const event of data.events) {
+            if (event.type === 'user') add(event.text, 'user');
+            else if (event.type === 'jarvis') showReply({ say: event.text, pending: event.pending }, false);
+            else if (event.type === 'error') add(event.text, 'error');
+          }
+          lastEvent = data.last;
+          showListener(data.listener);
+          showHologram(data.hologram);
+          showPresence(data.presence);
+          showDictation(data.listener);
+          showModes(data);
+        }
+      } catch (error) {
+        // La PC no respondió; se reintenta en el siguiente ciclo.
+      }
+    }
+    setTimeout(pollEvents, 1000);
+  }
+
+  listenerToggle.addEventListener('click', async () => {
+    try {
+      showListener(await api('/api/listener', { enabled: !listenerEnabled }));
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  const hologramToggle = document.getElementById('hologram-toggle');
+  let hologramOn = false;
+  let hologramPending = false;
+
+  function showHologram(running) {
+    if (hologramPending) return;
+    hologramOn = running;
+    hologramToggle.hidden = false;
+    hologramToggle.textContent = running ? 'HOLOGRAMA: ON' : 'HOLOGRAMA: OFF';
+    hologramToggle.setAttribute('aria-pressed', String(running));
+  }
+
+  hologramToggle.addEventListener('click', async () => {
+    if (hologramPending) return;
+    hologramPending = true;
+    hologramToggle.textContent = hologramOn ? 'HOLOGRAMA: APAGANDO' : 'HOLOGRAMA: INICIANDO';
+    try {
+      const data = await api('/api/hologram', { enabled: !hologramOn });
+      hologramPending = false;
+      showHologram(data.running);
+    } catch (error) {
+      hologramPending = false;
+      add(error.message, 'error');
+    }
+  });
+
+  // Presencia y dictado.
+  const presenceToggle = document.getElementById('presence-toggle');
+  const dictationToggle = document.getElementById('dictation-toggle');
+  const PRESENCE_LABELS = { present: 'PRESENCIA: TE VEO', away: 'PRESENCIA: AUSENTE', unknown: 'PRESENCIA: BUSCANDO',
+                            paused: 'PRESENCIA: EN PAUSA', off: 'PRESENCIA: OFF' };
+  let presenceOn = false;
+  let dictationOn = false;
+
+  function showPresence(presence) {
+    presenceOn = presence.enabled;
+    presenceToggle.hidden = false;
+    const failed = presence.state.startsWith('error');
+    presenceToggle.textContent = !presence.enabled ? 'PRESENCIA: OFF' : failed ? 'PRESENCIA: ERROR' : PRESENCE_LABELS[presence.state] || 'PRESENCIA';
+    presenceToggle.title = failed ? presence.state : '';
+    presenceToggle.setAttribute('aria-pressed', String(presence.enabled));
+    presenceToggle.classList.toggle('failed', failed);
+  }
+
+  function showDictation(listener) {
+    dictationOn = listener.dictation;
+    dictationToggle.hidden = false;
+    dictationToggle.textContent = dictationOn ? 'DICTADO: ON' : 'DICTADO: OFF';
+    dictationToggle.setAttribute('aria-pressed', String(dictationOn));
+  }
+
+  presenceToggle.addEventListener('click', async () => {
+    try {
+      showPresence(await api('/api/presence', { enabled: !presenceOn }));
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  dictationToggle.addEventListener('click', async () => {
+    try {
+      await api('/api/dictation', { enabled: !dictationOn });
+      dictationToggle.textContent = !dictationOn ? 'DICTADO: ON' : 'DICTADO: OFF';
+      if (!dictationOn) add('Dictado activado: habla al micrófono de la PC. Di «fin del dictado» para terminar.', 'jarvis');
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  // Paneles a pantalla completa.
+  document.querySelectorAll('[data-close]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.getElementById(button.dataset.close).hidden = true;
+    });
+  });
+
+  // Pantalla en vivo: toca para hacer clic, mantén pulsado para clic derecho.
+  const screenPanel = document.getElementById('screen-panel');
+  const screenImg = document.getElementById('screen-img');
+  const screenInfo = document.getElementById('screen-info');
+  let screenUrl = null;
+
+  async function screenLoop() {
+    while (!screenPanel.hidden) {
+      const started = performance.now();
+      try {
+        const width = Math.min(1920, Math.round(screenPanel.clientWidth * (window.devicePixelRatio || 1)));
+        const response = await fetch('/api/screen?width=' + width, { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!response.ok) throw new Error('La PC no envió la pantalla');
+        const url = URL.createObjectURL(await response.blob());
+        screenImg.src = url;
+        if (screenUrl) URL.revokeObjectURL(screenUrl);
+        screenUrl = url;
+        screenInfo.textContent = Math.round(1000 / (performance.now() - started)) + ' FPS';
+      } catch (error) {
+        screenInfo.textContent = 'SIN SEÑAL';
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      await new Promise((resolve) => setTimeout(resolve, document.hidden ? 1000 : 150));
+    }
+  }
+
+  document.getElementById('screen-open').addEventListener('click', () => {
+    if (!token) return add('Primero pega el token.', 'error');
+    screenPanel.hidden = false;
+    screenLoop();
+  });
+
+  let pressTimer = null;
+  let pressStart = null;
+  function screenPoint(event) {
+    const rect = screenImg.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
+             y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)) };
+  }
+  async function remoteClick(point, button) {
+    try {
+      await api('/api/screen/click', { ...point, button });
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  }
+  screenImg.addEventListener('contextmenu', (event) => event.preventDefault());
+  screenImg.addEventListener('pointerdown', (event) => {
+    pressStart = { x: event.clientX, y: event.clientY, point: screenPoint(event) };
+    pressTimer = setTimeout(() => {
+      remoteClick(pressStart.point, 'right');
+      pressStart = null;
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 550);
+  });
+  screenImg.addEventListener('pointerup', (event) => {
+    clearTimeout(pressTimer);
+    if (pressStart && Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) < 12) {
+      remoteClick(pressStart.point, 'left');
+    }
+    pressStart = null;
+  });
+  screenImg.addEventListener('pointercancel', () => {
+    clearTimeout(pressTimer);
+    pressStart = null;
+  });
+
+  screenPanel.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-scroll], [data-keys]');
+    if (!button) return;
+    try {
+      if (button.dataset.scroll) await api('/api/screen/scroll', { steps: Number(button.dataset.scroll) });
+      else await api('/api/screen/type', { keys: button.dataset.keys });
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  document.getElementById('remote-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const remoteInput = document.getElementById('remote-input');
+    if (!remoteInput.value) return;
+    try {
+      await api('/api/screen/type', { text: remoteInput.value });
+      remoteInput.value = '';
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  // Archivos entre el celular y la PC.
+  const filesPanel = document.getElementById('files-panel');
+  const filesList = document.getElementById('files-list');
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 ** 2) return (bytes / 1024).toFixed(0) + ' KB';
+    if (bytes < 1024 ** 3) return (bytes / 1024 ** 2).toFixed(1) + ' MB';
+    return (bytes / 1024 ** 3).toFixed(2) + ' GB';
+  }
+
+  async function refreshFiles() {
+    filesList.textContent = 'Cargando…';
+    try {
+      const data = await apiGet('/api/files');
+      filesList.textContent = data.files.length ? '' : 'La carpeta está vacía. Pídele a Jarvis «pásame al celular el archivo …» o sube uno.';
+      for (const file of data.files) {
+        const row = document.createElement('div');
+        row.className = 'file';
+        const name = document.createElement('span');
+        name.textContent = file.name;
+        const size = document.createElement('small');
+        size.textContent = formatSize(file.size);
+        const get = document.createElement('button');
+        get.className = 'hud-btn';
+        get.type = 'button';
+        get.textContent = 'Bajar';
+        get.onclick = () => downloadFile(file.name, get);
+        row.append(name, size, get);
+        filesList.append(row);
+      }
+    } catch (error) {
+      filesList.textContent = error.message;
+    }
+  }
+
+  async function downloadFile(name, button) {
+    button.disabled = true;
+    button.textContent = '···';
+    try {
+      const response = await fetch('/api/files/' + encodeURIComponent(name), { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!response.ok) throw new Error('No pude bajar ' + name);
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      add(error.message, 'error');
+    }
+    button.disabled = false;
+    button.textContent = 'Bajar';
+  }
+
+  document.getElementById('files-open').addEventListener('click', () => {
+    if (!token) return add('Primero pega el token.', 'error');
+    filesPanel.hidden = false;
+    refreshFiles();
+  });
+
+  document.getElementById('upload-input').addEventListener('change', async (event) => {
+    for (const file of event.target.files) {
+      filesList.prepend(Object.assign(document.createElement('div'), { className: 'file', textContent: 'Subiendo ' + file.name + '…' }));
+      try {
+        const response = await fetch('/api/files?name=' + encodeURIComponent(file.name), {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: file,
+        });
+        if (!response.ok) throw new Error((await response.json()).detail || 'No pude subir ' + file.name);
+      } catch (error) {
+        add(error.message, 'error');
+      }
+    }
+    event.target.value = '';
+    refreshFiles();
+  });
+
+  // Notificaciones push: recordatorios y archivos llegan aunque la app esté cerrada.
+  const pushToggle = document.getElementById('push-toggle');
+
+  function keyBytes(base64) {
+    const raw = atob(base64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - base64.length % 4) % 4));
+    return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+  }
+
+  async function showPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !token) return;
+    const registration = await navigator.serviceWorker.ready;
+    const subscribed = Boolean(await registration.pushManager.getSubscription()) && Notification.permission === 'granted';
+    pushToggle.hidden = false;
+    pushToggle.textContent = subscribed ? 'NOTIFICACIONES: ON' : 'NOTIFICACIONES: OFF';
+    pushToggle.setAttribute('aria-pressed', String(subscribed));
+  }
+
+  pushToggle.addEventListener('click', async () => {
+    try {
+      if (await Notification.requestPermission() !== 'granted') throw new Error('No diste permiso para notificaciones.');
+      const registration = await navigator.serviceWorker.ready;
+      const { key } = await apiGet('/api/push/key');
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+      }
+      await api('/api/push/subscribe', { subscription: subscription.toJSON() });
+      add('Notificaciones activadas en este dispositivo.', 'jarvis');
+    } catch (error) {
+      add(error.message, 'error');
+    }
+    showPush();
+  });
+
+  // Modos: grabar, subtítulos, dibujo, esfera, guardia y orbe.
+  const modes = document.getElementById('modes');
+  const modeState = {};
+  const pendingModes = new Set();
+
+  function showModes(data) {
+    modes.hidden = false;
+    Object.assign(modeState, data.modes || {}, {
+      record: Boolean(data.recording && data.recording.recording),
+      guard: Boolean(data.presence && data.presence.guard),
+    });
+    for (const button of modes.querySelectorAll('[data-toggle]')) {
+      const name = button.dataset.toggle;
+      if (pendingModes.has(name)) continue;
+      button.setAttribute('aria-pressed', String(Boolean(modeState[name])));
+      if (name === 'record') {
+        const seconds = data.recording && data.recording.seconds;
+        button.textContent = modeState.record ? `● GRABANDO ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '● GRABAR';
+      }
+    }
+  }
+
+  modes.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-toggle]');
+    if (!button || pendingModes.has(button.dataset.toggle)) return;
+    const name = button.dataset.toggle;
+    pendingModes.add(name);
+    const label = button.textContent;
+    button.textContent = '···';
+    try {
+      const result = await api('/api/toggle/' + name, { enabled: !modeState[name] });
+      add(result.message, 'jarvis');
+    } catch (error) {
+      add(error.message, 'error');
+    }
+    pendingModes.delete(name);
+    button.textContent = label;
+  });
+
+  showPush();
+  pollEvents();
+  document.addEventListener('visibilitychange', refreshStatus);
+  if (token) add('Sistemas en línea. ¿En qué puedo ayudarte?', 'jarvis');
+  else add('Pega el token de data\\token.txt para empezar.', 'jarvis');
+</script>
+</body>
+</html>
