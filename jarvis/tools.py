@@ -1,5 +1,6 @@
 """Acciones de la PC. La política de confirmación se decide aquí, nunca en el modelo."""
 import ctypes
+import json
 import os
 import re
 import subprocess
@@ -24,14 +25,35 @@ _keyboard = Controller()
 # Modos que leen las ventanas de Jarvis (holograma y orbe) cada vez que preguntan al servidor.
 settings = {"subtitles": False, "draw": False, "globe": False, "solar": False, "earth": False,
             "scanner": False, "effects": False, "keyboard": False, "notes": False, "visualizer": False,
-            "earth_cities": []}
+            "panels": True, "taskbar": True, "local_only": False, "earth_cities": [], "life": False, "life_page": "today"}
 HOLO_MODES = {
     "draw": "dibujo en el aire", "globe": "esfera holográfica", "solar": "sistema solar",
     "earth": "globo terráqueo", "scanner": "escáner de identidad", "effects": "efectos de partículas y bola de energía",
     "keyboard": "teclado holográfico", "notes": "notas adhesivas", "visualizer": "visualizador de audio",
+    "panels": "paneles laterales", "taskbar": "barra de tareas holográfica", "life": "panel de mi vida",
 }
+# Estos quedan encendidos aunque se apague y se vuelva a encender el holograma.
+PERSISTENT = {"panels", "taskbar"}
+SAVED = PERSISTENT | {"local_only"}  # lo que se recuerda entre reinicios de Jarvis
+HOLO_CHOICES = DATA_DIR / "hologramas.json"  # se recuerda si quieres ver los paneles y la barra
+
+
+def _load_choices() -> None:
+    try:
+        saved = json.loads(HOLO_CHOICES.read_text(encoding="utf-8"))
+        settings.update({name: bool(saved[name]) for name in SAVED if name in saved})
+    except (OSError, ValueError):
+        pass
+
+
+def _save_choices() -> None:
+    HOLO_CHOICES.parent.mkdir(exist_ok=True)
+    HOLO_CHOICES.write_text(json.dumps({name: settings[name] for name in SAVED}), encoding="utf-8")
+
+
+_load_choices()
 # Estos usan el pellizco para sí mismos: solo uno a la vez.
-EXCLUSIVE = {"draw", "globe", "solar", "earth"}
+EXCLUSIVE = {"draw", "globe", "solar", "earth", "life"}
 # El servidor conecta aquí lo que vive fuera de este módulo: la escucha, la presencia, los avisos.
 hooks = {}
 
@@ -247,7 +269,7 @@ def hologram_on() -> str:
 
 
 def hologram_off() -> str:
-    settings.update({name: False for name in HOLO_MODES})
+    settings.update({name: False for name in HOLO_MODES if name not in PERSISTENT})
     return "Modo holograma desactivado" if hologram.stop() else "El modo holograma ya estaba apagado"
 
 
@@ -282,6 +304,9 @@ HOW_TO = {
     "keyboard": "pellizca las teclas; escribe en la ventana activa",
     "notes": "pellizca una nota para moverla; un puño sobre ella la borra",
     "visualizer": "pon música",
+    "panels": "a la izquierda la conversación, a la derecha el estado y los botones; pellízcalos",
+    "taskbar": "baja la mano al borde inferior y pellizca la ventana que quieras",
+    "life": "pellizca las pestañas de arriba para cambiar de sección y las casillas para marcarlas",
 }
 
 
@@ -291,11 +316,15 @@ def holo(name: str, enabled: bool = True) -> str:
         raise ValueError(f"Holograma desconocido: {name}. Disponibles: {', '.join(HOLO_MODES)}")
     if not enabled:
         settings[name] = False
+        if name in PERSISTENT:
+            _save_choices()
         return f"{HOLO_MODES[name].capitalize()}: oculto"
     hologram_on()
     if name in EXCLUSIVE:
         settings.update({other: False for other in EXCLUSIVE})
     settings[name] = True
+    if name in PERSISTENT:
+        _save_choices()
     return f"{HOLO_MODES[name].capitalize()} en pantalla: {HOW_TO[name]}"
 
 
@@ -313,6 +342,47 @@ def globe_on() -> str:
 
 def globe_off() -> str:
     return holo("globe", False)
+
+
+def life(action: str, args: dict | None = None) -> str:
+    """Mi vida: registrar o cambiar algo (tareas, peso, comidas, clases, eventos, mapas de ideas…)."""
+    from .life import life as store
+
+    return store.apply(action, args or {})["say"]
+
+
+def life_summary() -> dict:
+    from .life import life as store
+
+    summary = store.summary()
+    summary["maps"] = [{"name": m["name"], "kind": m["kind"], "nodes": [n["text"] for n in m["nodes"]]}
+                       for m in summary["maps"]]  # para Claude, solo lo esencial de cada mapa
+    return summary
+
+
+LIFE_PAGES = ("today", "tasks", "body", "food", "habits", "money", "classes", "calendar", "ideas")
+
+
+def life_show(page: str = "today") -> str:
+    if page not in LIFE_PAGES:
+        raise ValueError(f"Sección desconocida: {page}")
+    settings["life_page"] = page
+    return holo("life")
+
+
+def local_only(enabled: bool) -> str:
+    """Modo local: solo comandos conocidos, sin Claude."""
+    settings["local_only"] = bool(enabled)
+    _save_choices()
+    return "Modo local activado" if enabled else "Modo local desactivado"
+
+
+def local_on() -> str:
+    return local_only(True)
+
+
+def local_off() -> str:
+    return local_only(False)
 
 
 def earth_city(city: str) -> str:
@@ -488,6 +558,168 @@ def list_shared_files() -> list[dict]:
     return files.list_files()
 
 
+
+# ---------------------------------------------------------------- Navegación: abrir, cerrar, ventanas, volumen
+
+def plain(text: str) -> str:
+    """Minúsculas y sin tildes, para comparar nombres dichos en voz alta."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFD", text.lower())
+    return " ".join("".join(c for c in text if unicodedata.category(c) != "Mn").split())
+
+
+HOME = os.path.expanduser("~")
+# Nombre dicho (sin tildes) -> qué abrir. "start" usa el comando start de Windows; "url" una web; "folder" una carpeta.
+LAUNCH = {
+    "chrome": ("start", "chrome"), "google chrome": ("start", "chrome"), "navegador": ("start", "chrome"),
+    "edge": ("start", "msedge"), "microsoft edge": ("start", "msedge"),
+    "explorador": ("start", "explorer"), "explorador de archivos": ("start", "explorer"), "archivos": ("start", "explorer"),
+    "bloc de notas": ("start", "notepad"), "notepad": ("start", "notepad"), "block de notas": ("start", "notepad"),
+    "calculadora": ("start", "calc"), "administrador de tareas": ("start", "taskmgr"),
+    "configuracion": ("start", "ms-settings:"), "ajustes": ("start", "ms-settings:"),
+    "paint": ("start", "mspaint"), "terminal": ("start", "wt"), "cmd": ("start", "cmd"),
+    "simbolo del sistema": ("start", "cmd"), "powershell": ("start", "powershell"),
+    "word": ("start", "winword"), "excel": ("start", "excel"), "powerpoint": ("start", "powerpnt"),
+    "spotify": ("start", "spotify:"), "steam": ("start", "steam://open/main"),
+    "youtube": ("url", "https://www.youtube.com"), "gmail": ("url", "https://mail.google.com"),
+    "correo": ("url", "https://mail.google.com"), "google": ("url", "https://www.google.com"),
+    "netflix": ("url", "https://www.netflix.com"), "github": ("url", "https://github.com"),
+    "facebook": ("url", "https://www.facebook.com"), "instagram": ("url", "https://www.instagram.com"),
+    "tiktok": ("url", "https://www.tiktok.com"), "twitter": ("url", "https://x.com"), "x": ("url", "https://x.com"),
+    "twitch": ("url", "https://www.twitch.tv"), "reddit": ("url", "https://www.reddit.com"),
+    "linkedin": ("url", "https://www.linkedin.com"), "amazon": ("url", "https://www.amazon.com"),
+    "mercado libre": ("url", "https://www.mercadolibre.com"), "wikipedia": ("url", "https://es.wikipedia.org"),
+    "google maps": ("url", "https://www.google.com/maps"), "maps": ("url", "https://www.google.com/maps"),
+    "mapas": ("url", "https://www.google.com/maps"), "drive": ("url", "https://drive.google.com"),
+    "google drive": ("url", "https://drive.google.com"), "calendario": ("url", "https://calendar.google.com"),
+    "traductor": ("url", "https://translate.google.com"), "outlook": ("url", "https://outlook.live.com"),
+    "whatsapp web": ("url", "https://web.whatsapp.com"), "claude": ("url", "https://claude.ai"),
+    "chatgpt": ("url", "https://chatgpt.com"), "jarvis": ("url", "http://127.0.0.1:8765"),
+    "descargas": ("folder", os.path.join(HOME, "Downloads")), "documentos": ("folder", os.path.join(HOME, "Documents")),
+    "escritorio": ("folder", os.path.join(HOME, "Desktop")), "imagenes": ("folder", os.path.join(HOME, "Pictures")),
+    "fotos": ("folder", os.path.join(HOME, "Pictures")), "videos": ("folder", os.path.join(HOME, "Videos")),
+    "musica": ("folder", os.path.join(HOME, "Music")), "carpeta de jarvis": ("folder", str(ROOT)),
+    "grabaciones": ("folder", str(recorder.VIDEOS_DIR)), "videos de jarvis": ("folder", str(recorder.VIDEOS_DIR)),
+}
+# Nombre dicho -> proceso, para cerrar apps.
+PROCESSES = {
+    "chrome": "chrome.exe", "google chrome": "chrome.exe", "navegador": "chrome.exe", "edge": "msedge.exe",
+    "spotify": "spotify.exe", "bloc de notas": "notepad.exe", "notepad": "notepad.exe",
+    "calculadora": "calculatorapp.exe", "word": "winword.exe", "excel": "excel.exe", "powerpoint": "powerpnt.exe",
+    "discord": "discord.exe", "steam": "steam.exe", "obs": "obs64.exe", "visual studio code": "code.exe",
+    "vs code": "code.exe", "whatsapp": "whatsapp.exe", "paint": "mspaint.exe", "terminal": "windowsterminal.exe",
+    "administrador de tareas": "taskmgr.exe", "configuracion": "systemsettings.exe",
+}
+
+
+def _start(target: str) -> None:
+    subprocess.Popen(["cmd", "/c", "start", "", target], creationflags=subprocess.CREATE_NO_WINDOW)
+
+
+def launch(name: str) -> str:
+    """Abre una app, una web o una carpeta por su nombre. Lo desconocido se busca en el menú Inicio."""
+    key = re.sub(r"^(el|la|los|las|mi|mis)\s+", "", plain(name)).strip(" .")
+    if key in LAUNCH:
+        kind, target = LAUNCH[key]
+        if kind == "url":
+            open_url(target)
+        elif kind == "folder":
+            os.startfile(target)
+        else:
+            _start(target)
+        return f"Abriendo {name}"
+    if re.fullmatch(r"[\w-]+(\.[\w-]+)+(/\S*)?", key):  # algo.com
+        open_url("https://" + key)
+        return f"Abriendo {key}"
+    if not key or len(key.split()) > 4:
+        raise ValueError(f"No sé qué abrir: {name}")
+    # Como lo haría una persona: tecla Windows, escribir el nombre y Enter.
+    press_keys("win")
+    time.sleep(0.7)
+    type_text(name)
+    time.sleep(1.0)
+    press_keys("enter")
+    return f"Buscando {name} en el menú Inicio"
+
+
+def _windows():
+    from . import winctl
+
+    return winctl, winctl.Windows(exclude=set())
+
+
+def close_app(name: str) -> str:
+    """Cierra una app como si pulsaras la X: si tiene algo sin guardar, ella misma pregunta."""
+    winctl, windows = _windows()
+    key = re.sub(r"^(el|la|los|las)\s+", "", plain(name)).strip(" .")
+    process = PROCESSES.get(key)
+    closed = 0
+    for window in windows.app_windows():
+        owner = winctl.process_name(window["hwnd"]).lower()
+        title = plain(window["title"])
+        explorer_folder = key in ("explorador", "archivos", "explorador de archivos") and owner == "explorer.exe"
+        if (process and owner == process) or explorer_folder or (not process and key and key in title):
+            winctl.close_window(window["hwnd"])
+            closed += 1
+    if not closed:
+        raise ValueError(f"No encontré ninguna ventana de {name} abierta")
+    return f"Cerré {closed} ventana{'s' if closed > 1 else ''} de {name}"
+
+
+def focus_window(name: str) -> str:
+    """Trae al frente la ventana cuyo título o programa coincide con el nombre."""
+    winctl, windows = _windows()
+    key = re.sub(r"^(el|la|los|las)\s+", "", plain(name)).strip(" .")
+    process = PROCESSES.get(key, "")
+    for window in windows.app_windows():
+        owner = winctl.process_name(window["hwnd"]).lower()
+        if key in plain(window["title"]) or (process and owner == process) or key in owner:
+            winctl.activate(window["hwnd"])
+            return f"Cambié a {window['title']}"
+    raise ValueError(f"No hay ninguna ventana de {name} abierta")
+
+
+def window_action(action: str) -> str:
+    """minimize, maximize o restore sobre la ventana activa; minimize_all para todas."""
+    winctl, windows = _windows()
+    if action == "minimize_all":
+        windows.minimize_all()
+        return "Ventanas minimizadas"
+    hwnd = winctl.user32.GetForegroundWindow()
+    if not hwnd or not windows._is_app_window(hwnd):
+        raise ValueError("No hay una ventana activa")
+    {"minimize": windows.minimize, "maximize": windows.maximize, "restore": windows.restore}[action](hwnd)
+    return "Listo"
+
+
+def _endpoint():
+    import comtypes
+    from pycaw.pycaw import AudioUtilities
+
+    comtypes.CoInitialize()  # cada hilo del servidor necesita su propia conexión con el audio de Windows
+    return AudioUtilities.GetSpeakers().EndpointVolume
+
+
+def set_volume(level: float) -> str:
+    level = max(0, min(100, float(level)))
+    _endpoint().SetMasterVolumeLevelScalar(level / 100, None)
+    return f"Volumen al {level:.0f} por ciento"
+
+
+def get_volume() -> int:
+    return round(_endpoint().GetMasterVolumeLevelScalar() * 100)
+
+
+def take_screenshot() -> str:
+    from . import screen
+
+    folder = os.path.join(HOME, "Pictures", "Jarvis")
+    path = os.path.join(folder, f"captura-{datetime.now():%Y%m%d-%H%M%S}.png")
+    screen.save_png(__import__("pathlib").Path(path), max_width=10000)
+    return f"Captura guardada en {path}"
+
+
 SAFE_TOOLS = {
     "system_status": system_status,
     "type_text": type_text,
@@ -537,6 +769,18 @@ SAFE_TOOLS = {
     "delete_note": delete_note,
     "list_notes": list_notes,
     "set_timer": set_timer,
+    "launch": launch,
+    "life": life,
+    "life_summary": life_summary,
+    "life_show": life_show,
+    "local_only": local_only,
+    "local_on": local_on,
+    "local_off": local_off,
+    "close_app": close_app,
+    "focus_window": focus_window,
+    "window_action": window_action,
+    "set_volume": set_volume,
+    "take_screenshot": take_screenshot,
     "record_start": record_start,
     "record_stop": record_stop,
 }

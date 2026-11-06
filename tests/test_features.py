@@ -240,3 +240,14 @@ def test_timer_shows_up_for_the_desktop_and_not_in_the_briefing():
 def test_page_can_toggle_holograms():
     response = client.post("/api/toggle/visualizer", json={"enabled": True}, headers=AUTH)
     assert response.status_code == 200 and tools.settings["visualizer"]
+
+
+def test_hiding_the_side_panels_is_remembered(tmp_path, monkeypatch):
+    monkeypatch.setattr(tools, "HOLO_CHOICES", tmp_path / "hologramas.json")
+    tools.settings["taskbar"] = True  # sin depender de lo que tenga elegido el usuario
+    tools.execute("holo", {"name": "panels", "enabled": False})
+    tools.settings["panels"] = True
+    tools._load_choices()
+    assert tools.settings["panels"] is False
+    tools.execute("hologram_off")
+    assert tools.settings["panels"] is False and tools.settings["taskbar"] is True

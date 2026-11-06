@@ -192,7 +192,7 @@ class Listener:
             self.events.publish("error", text=str(error))
             self.speaker.say("Lo siento, no pude contactar con Claude.")
             return False
-        self.events.publish("jarvis", text=reply["say"], pending=reply["pending"])
+        self.events.publish("jarvis", text=reply["say"], pending=reply["pending"], local=reply.get("local", False))
         if reply["say"]:
             self.speaker.say(reply["say"])
         return reply["pending"] is None and not self.dictation
@@ -215,4 +215,4 @@ class Listener:
                 self.speaker.say("Dictado terminado.", wait=True)
                 break
             tools.type_text(dictation_text(text))
-            self.events.publish("user", text="✎ " + text)
+            self.events.publish("user", text="Dictado: " + text)

@@ -44,7 +44,7 @@
            font: 12px var(--mono); letter-spacing: .18em; color: var(--muted); }
   .brand { color: var(--cyan); font-size: 15px; letter-spacing: .32em; text-shadow: 0 0 10px var(--cyan-dim); }
   #state-label { padding: 2px 10px; border: 1px solid var(--cyan-dim); color: var(--cyan); transition: color .3s, border-color .3s; }
-  #state-label::before { content: "● "; animation: blink 1.6s steps(2) infinite; }
+  #state-label::before { animation: blink 1.6s steps(2) infinite; }
 
   .stage { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 4px 0 6px; }
   #reactor {
@@ -116,11 +116,8 @@
   .hud-btn:hover:not(:disabled) { background: rgba(79, 216, 255, .18); box-shadow: 0 0 12px var(--cyan-dim) inset; }
   .hud-btn.hit { background: rgba(79, 216, 255, .4); }
   .hud-btn.approve { border-color: var(--cyan); }
-  .hud-btn.deny, #quick .power { border-color: rgba(255, 77, 94, .55); background: rgba(255, 77, 94, .08); }
+  .hud-btn.deny { border-color: rgba(255, 77, 94, .55); background: rgba(255, 77, 94, .08); }
 
-  #quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-  #quick button { min-width: 0; min-height: 42px; padding: 4px 2px; font-size: 12px; letter-spacing: 0; overflow-wrap: anywhere; }
-  @media (max-width: 420px) { #quick button { font-size: 11px; } }
   form { display: flex; gap: 8px; margin-top: 8px; }
   input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid var(--cyan-dim); background: rgba(2, 12, 20, .8);
           color: inherit; font: inherit; outline: none; transition: box-shadow .2s; }
@@ -148,6 +145,172 @@
   .file span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .file small { color: var(--muted); font-family: var(--mono); white-space: nowrap; }
   #upload-input { display: none; }
+  .commands-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 10px;
+                   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); align-content: start; }
+  .command-group { padding: 10px 12px; border: 1px solid var(--cyan-dim); background: var(--panel); }
+  .command-group h3 { margin: 0 0 6px; font: 11px var(--mono); letter-spacing: .2em; color: var(--cyan); }
+  .command-group button { display: block; width: 100%; margin: 2px 0; padding: 4px 6px; border: 0; text-align: left;
+                          background: none; color: var(--text); font-size: 13px; }
+  .command-group button:hover { background: rgba(79, 216, 255, .12); }
+
+  #media-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  #media-row button { min-height: 46px; padding: 0; font-size: 20px; }
+  #dock { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  #dock button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+                 min-height: 58px; padding: 6px 2px; border: 1px solid var(--cyan-dim); background: rgba(79, 216, 255, .08);
+                 color: var(--cyan); font: 11px var(--mono); letter-spacing: .1em; }
+  #dock button span { font-size: 22px; letter-spacing: 0; }
+  #dock button:active { background: rgba(79, 216, 255, .3); }
+  .cat-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; flex-shrink: 0; }
+  .cat-tabs::-webkit-scrollbar { display: none; }
+  .cat-tabs button { flex: none; padding: 10px 14px; border: 1px solid var(--cyan-dim); background: rgba(79, 216, 255, .06);
+                     color: var(--cyan); font: 13px var(--mono); letter-spacing: .06em; white-space: nowrap; }
+  .cat-tabs button.on { background: rgba(79, 216, 255, .25); color: #fff; }
+  .control-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 20px; scroll-behavior: smooth; }
+  .cat { margin-bottom: 18px; scroll-margin-top: 4px; }
+  .cat h3 { margin: 6px 0 8px; font: 12px var(--mono); letter-spacing: .2em; color: var(--muted); font-weight: normal; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .tile { position: relative; min-height: 62px; padding: 10px 12px 10px 26px; border: 1px solid rgba(111, 157, 179, .4);
+          background: rgba(6, 22, 34, .8); color: var(--text); font: 600 14px "Segoe UI", system-ui, sans-serif;
+          letter-spacing: .02em; text-align: left; overflow-wrap: anywhere; transition: background .15s, border-color .15s; }
+  .tile::before { content: ""; position: absolute; left: 10px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
+                  border-radius: 50%; background: rgba(111, 157, 179, .35); }
+  .tile:not([aria-pressed])::before { display: none; }
+  .tile:not([aria-pressed]) { padding-left: 12px; }
+  .tile[aria-pressed="true"] { border-color: var(--cyan); background: rgba(79, 216, 255, .2); color: #fff;
+                               box-shadow: 0 0 14px rgba(79, 216, 255, .25) inset; }
+  .tile[aria-pressed="true"]::before { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .tile:active, .tile.hit { background: rgba(79, 216, 255, .35); }
+  .tile.wide { grid-column: 1 / -1; }
+  .tile.power { border-color: rgba(255, 77, 94, .55); background: rgba(255, 77, 94, .08); }
+  .tile.failed { border-color: var(--red); color: var(--red); }
+  .tile[data-toggle="record"][aria-pressed="true"] { border-color: var(--red); background: rgba(255, 77, 94, .2); }
+  .tile[data-toggle="record"][aria-pressed="true"]::before { background: var(--red); box-shadow: 0 0 8px var(--red);
+                                                             animation: blink 1.2s steps(2) infinite; }
+  @media (max-width: 420px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tile { font-size: 13px; min-height: 58px; }
+  }
+  @media (max-height: 700px) { #reactor { width: clamp(110px, 24vh, 200px); } }
+
+  .life-card { margin-bottom: 12px; padding: 12px; border: 1px solid var(--cyan-dim); background: var(--panel); }
+  .life-card h3 { margin: 0 0 10px; font: 12px var(--mono); letter-spacing: .18em; color: var(--cyan); font-weight: normal; }
+  .life-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .life-form input, .life-form select { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--cyan-dim);
+                                        background: rgba(2, 12, 20, .9); color: var(--text); font: 15px "Segoe UI", system-ui, sans-serif; }
+  .life-form .full { grid-column: 1 / -1; }
+  .life-form button { min-height: 44px; }
+  .life-row { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 4px; border-bottom: 1px solid rgba(79, 216, 255, .1); }
+  .life-row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .life-row small { color: var(--muted); font-family: var(--mono); }
+  .life-row input[type=checkbox] { width: 26px; height: 26px; accent-color: #4fd8ff; flex: none; }
+  .life-row .del { flex: none; min-width: 40px; min-height: 40px; border: 1px solid rgba(255, 77, 94, .4); background: none; color: var(--red); }
+  .life-done { color: var(--muted); text-decoration: line-through; }
+  .life-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .life-stat { padding: 10px; border: 1px solid rgba(79, 216, 255, .2); }
+  .life-stat b { display: block; font-size: 22px; color: #fff; }
+  .life-stat span { font: 11px var(--mono); letter-spacing: .1em; color: var(--muted); }
+  .life-bar { height: 8px; margin-top: 6px; background: rgba(79, 216, 255, .15); }
+  .life-bar i { display: block; height: 100%; background: var(--cyan); }
+  .moods { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .moods button { min-height: 54px; font-size: 26px; border: 1px solid var(--cyan-dim); background: none; }
+  .moods button.on { background: rgba(190, 150, 255, .3); border-color: #be96ff; }
+  .life-map { width: 100%; height: 320px; border: 1px solid rgba(190, 150, 255, .35); background: rgba(10, 6, 24, .6); }
+
+  /* ------------------------------------------------ Rediseño: cristal, biseles y tipografía técnica */
+  :root {
+    --display: "Bahnschrift", "Segoe UI Variable Display", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+    --line: rgba(79, 216, 255, .2);
+    --line-strong: rgba(79, 216, 255, .6);
+    --glass: linear-gradient(160deg, rgba(14, 38, 58, .82), rgba(4, 14, 24, .9));
+    --bevel: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+    --bevel-sm: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  }
+  body { font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  .ico { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6;
+         stroke-linecap: round; stroke-linejoin: round; }
+  .brand, #state-label, #voice-toggle, .hint, .panel-head, .cat-tabs button, .hud-btn, .tile, #dock button, .cat h3,
+  .life-card h3, .msg small, .chip { font-family: var(--display); }
+  .brand { letter-spacing: .5em; font-weight: 600; }
+  #state-label { letter-spacing: .22em; clip-path: var(--bevel-sm); background: rgba(79, 216, 255, .08); }
+  #state-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 8px 1px 0; border-radius: 50%;
+                         background: currentColor; box-shadow: 0 0 8px currentColor; vertical-align: middle; }
+  #voice-toggle { clip-path: var(--bevel-sm); letter-spacing: .18em; }
+
+  .hud-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; letter-spacing: .14em;
+             text-transform: uppercase; font-size: 13px; background: var(--glass); border-color: var(--line);
+             clip-path: var(--bevel-sm); }
+  .hud-btn:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: 0 0 16px rgba(79, 216, 255, .18) inset; }
+  .hud-btn .ico { width: 18px; height: 18px; }
+  #send span { display: none; }
+  @media (min-width: 421px) { #send span { display: inline; } }
+
+  .icon-btn { display: grid; place-items: center; min-height: 48px; border: 1px solid var(--line); background: var(--glass);
+              color: var(--cyan); clip-path: var(--bevel-sm); transition: border-color .15s, background .15s; }
+  .icon-btn:active, .icon-btn.hit { background: rgba(79, 216, 255, .28); }
+  #media-row button { font-size: inherit; }
+
+  #dock button { gap: 6px; min-height: 62px; background: var(--glass); border-color: var(--line); clip-path: var(--bevel-sm);
+                 font-size: 11px; letter-spacing: .16em; color: var(--text); }
+  #dock button .ico { color: var(--cyan); width: 24px; height: 24px; }
+  #dock button:active { background: rgba(79, 216, 255, .25); }
+  #dock button span { font-size: inherit; letter-spacing: inherit; }
+  @media (max-width: 420px) { #dock button { font-size: 9.5px; letter-spacing: .08em; } }
+
+  .panel { background: radial-gradient(ellipse at 50% 0%, rgba(14, 50, 74, .55), transparent 60%), rgba(2, 7, 13, .985); }
+  .panel-head { font-size: 13px; letter-spacing: .32em; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .cat-tabs button { clip-path: var(--bevel-sm); letter-spacing: .12em; text-transform: uppercase; font-size: 12px;
+                     border-color: var(--line); color: var(--muted); }
+  .cat-tabs button.on { color: #fff; border-color: var(--line-strong); background: rgba(79, 216, 255, .18); }
+  .cat h3 { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: .28em; text-transform: uppercase;
+            color: var(--cyan); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .cat h3 .ico { width: 16px; height: 16px; }
+
+  .tile { display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 12px;
+          align-content: center; padding: 12px 14px; min-height: 66px; text-align: left; background: var(--glass);
+          border: 1px solid var(--line); clip-path: var(--bevel); font-weight: 500; font-size: 14px; letter-spacing: .1em;
+          text-transform: uppercase; color: var(--text); }
+  .tile::before { content: none; }
+  .tile .ico { grid-row: 1 / span 2; align-self: center; color: var(--cyan); }
+  .tile .label { grid-column: 2; overflow-wrap: anywhere; }
+  .tile[aria-pressed]::after { content: "Inactivo"; grid-column: 2; margin-top: 3px; font: 10px var(--mono);
+                               letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .tile[aria-pressed="true"]::after { content: "Activo"; color: var(--cyan); }
+  .tile[aria-pressed="true"] { border-color: var(--line-strong); color: #fff;
+                               background: linear-gradient(135deg, rgba(79, 216, 255, .24), rgba(79, 216, 255, .05));
+                               box-shadow: inset 3px 0 0 var(--cyan); }
+  .tile:active, .tile.hit { background: rgba(79, 216, 255, .3); }
+  @media (max-width: 420px) { .tile { font-size: 12.5px; letter-spacing: .05em; padding: 12px 10px; column-gap: 10px; } }
+  .tile.power .ico, .tile.power { color: #ff8f9a; }
+  .tile.power { border-color: rgba(255, 77, 94, .45); background: linear-gradient(160deg, rgba(60, 12, 20, .7), rgba(14, 6, 10, .9)); }
+  .tile.failed::after { content: "Error"; color: var(--red); }
+  .tile[data-toggle="record"][aria-pressed="true"] { box-shadow: inset 3px 0 0 var(--red); border-color: rgba(255, 77, 94, .7);
+                                                    background: linear-gradient(135deg, rgba(255, 77, 94, .25), rgba(255, 77, 94, .05)); }
+  .tile[data-toggle="record"][aria-pressed="true"] .ico { color: var(--red); animation: blink 1.2s steps(2) infinite; }
+  .tile[data-toggle="record"][aria-pressed="true"]::after { content: "Grabando"; color: var(--red); }
+
+  .msg { clip-path: var(--bevel-sm); }
+  .msg small { letter-spacing: .26em; }
+  .tag { display: inline-block; margin-left: 8px; padding: 0 6px; border: 1px solid var(--line-strong); color: var(--cyan);
+         font: 9px var(--mono); letter-spacing: .18em; vertical-align: 1px; }
+
+  #life-panel .panel-head > span:last-child { display: flex; gap: 6px; }
+  #life-panel .panel-head .hud-btn { padding: 8px 10px; font-size: 11px; letter-spacing: .1em; }
+  .life-card, .command-group { background: var(--glass); border-color: var(--line); clip-path: var(--bevel); }
+  .life-card h3 { letter-spacing: .26em; }
+  .life-stat { clip-path: var(--bevel-sm); background: rgba(79, 216, 255, .04); border-color: var(--line); }
+  .life-stat b { font-family: var(--display); font-weight: 500; letter-spacing: .02em; }
+  .life-row .del { display: grid; place-items: center; clip-path: var(--bevel-sm); }
+  .life-row .del .ico { width: 16px; height: 16px; }
+  .life-form input, .life-form select { border-color: var(--line); clip-path: var(--bevel-sm); }
+  .moods button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 60px;
+                  font-size: inherit; clip-path: var(--bevel-sm); color: var(--text); border-color: var(--line); background: var(--glass); }
+  .moods b { font: 500 20px var(--display); }
+  .moods span { font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .moods .mood-1 b { color: #ff4d5e; } .moods .mood-2 b { color: #ff9f5a; } .moods .mood-3 b { color: #ffd166; }
+  .moods .mood-4 b { color: #4fd8ff; } .moods .mood-5 b { color: #5affb4; }
+  .moods button.on { border-color: var(--line-strong); background: rgba(79, 216, 255, .22); }
+  .moods button.on span { color: #fff; }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes breathe { 50% { opacity: .78; transform: scale(.93); } }
@@ -161,6 +324,59 @@
 </style>
 </head>
 <body data-state="idle">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-vol-down" viewBox="0 0 24 24"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 12h5"/></symbol>
+  <symbol id="i-vol-up" viewBox="0 0 24 24"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5a3.5 3.5 0 0 1 0 5"/><path d="M18.5 7a7 7 0 0 1 0 10"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
+  <symbol id="i-play-pause" viewBox="0 0 24 24"><path d="M4 6l7 6-7 6z"/><path d="M15 6v12M19 6v12"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 6v12"/><path d="M19 6l-9 6 9 6z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 6v12"/><path d="M5 6l9 6-9 6z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2 12h4l2.5-6 4 12 2.5-6H22"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 6h16M4 11h11M4 16h7"/><path d="M18 13v7M16.5 13h3M16.5 20h3"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.6-3.4 8-8 9-4.6-1-8-4.4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-orb" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></symbol>
+  <symbol id="i-captions" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M7 15h4M13 15h4M7 11h10"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 11V4a1.5 1.5 0 0 1 3 0v7"/><path d="M14 11V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5A6.5 6.5 0 0 1 4.6 17l-1.9-3.8a1.5 1.5 0 0 1 2.6-1.5L8 14"/></symbol>
+  <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M8 4v16M16 4v16"/></symbol>
+  <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="9" rx="1"/><rect x="3" y="15" width="18" height="5" rx="1"/><path d="M7 17.5h2M11 17.5h2M15 17.5h2"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l3 3M15 15l3 3M6 18l3-3M15 9l3-3"/></symbol>
+  <symbol id="i-sphere" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7.5h14M5 16.5h14"/></symbol>
+  <symbol id="i-orbit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/><circle cx="19.5" cy="8.6" r="1.4"/></symbol>
+  <symbol id="i-earth" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3.2 3 3.2 15 0 18M12 3c-3.2 3-3.2 15 0 18"/></symbol>
+  <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 14v5M8 9v10M12 5v14M16 10v9M20 13v6"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="1"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1M7 14h10"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4h14v10l-6 6H5z"/><path d="M13 20v-6h6"/></symbol>
+  <symbol id="i-record" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18M6 20V11M11 20V5M16 20v-8M21 20v-4"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-enter" viewBox="0 0 24 24"><path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/></symbol>
+  <symbol id="i-backspace" viewBox="0 0 24 24"><path d="M8 5h13v14H8l-6-7z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="1"/><path d="M4 10h16M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-tasks" viewBox="0 0 24 24"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6.5h9M11 12.5h9M11 18.5h9"/></symbol>
+  <symbol id="i-body" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 7v7M7 10h10M9 21l3-7 3 7"/></symbol>
+  <symbol id="i-food" viewBox="0 0 24 24"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1-3.5 4-3.5 7.5H17"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 11a6 6 0 0 1 10.2-4.3L17 9.5M17 4.5v5h-5"/><path d="M20 13a6 6 0 0 1-10.2 4.3L7 14.5M7 19.5v-5h5"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 7h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 7l12-3v3M15 13.5h2"/></symbol>
+  <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3.5 2.2 8.5 2.2 12 0v-5M22 9v5"/></symbol>
+  <symbol id="i-nodes" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.3 11l9.4-4M7.3 13l9.4 4"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-6z"/></symbol>
+</svg>
 <header>
   <span class="brand">J.A.R.V.I.S.</span>
   <span id="state-label">EN LÍNEA</span>
@@ -192,33 +408,6 @@
     </svg>
   </button>
   <p class="hint" id="hint">Toca el núcleo para hablar</p>
-  <div class="chips">
-    <button id="listener-toggle" class="chip" type="button" aria-pressed="false" hidden>ESCUCHA PC</button>
-    <button id="hologram-toggle" class="chip" type="button" aria-pressed="false" hidden>HOLOGRAMA: OFF</button>
-    <button id="presence-toggle" class="chip" type="button" aria-pressed="false" hidden>PRESENCIA</button>
-    <button id="dictation-toggle" class="chip" type="button" aria-pressed="false" hidden>DICTADO: OFF</button>
-    <button id="screen-open" class="chip action" type="button">PANTALLA</button>
-    <button id="files-open" class="chip action" type="button">ARCHIVOS</button>
-    <button id="push-toggle" class="chip" type="button" aria-pressed="false" hidden>NOTIFICACIONES: OFF</button>
-  </div>
-  <div class="chips" id="modes" hidden>
-    <button class="chip" type="button" data-toggle="record" aria-pressed="false">● GRABAR</button>
-    <button class="chip" type="button" data-toggle="subtitles" aria-pressed="false">SUBTÍTULOS</button>
-    <button class="chip" type="button" data-toggle="guard" aria-pressed="false">GUARDIA</button>
-    <button class="chip" type="button" data-toggle="orb" aria-pressed="false">ORBE</button>
-    <button class="chip action" type="button" id="holo-more" aria-expanded="false">HOLOGRAMAS ▾</button>
-  </div>
-  <div class="chips" id="holo-chips" hidden>
-    <button class="chip" type="button" data-toggle="scanner" aria-pressed="false">ESCÁNER</button>
-    <button class="chip" type="button" data-toggle="effects" aria-pressed="false">EFECTOS</button>
-    <button class="chip" type="button" data-toggle="draw" aria-pressed="false">DIBUJO</button>
-    <button class="chip" type="button" data-toggle="globe" aria-pressed="false">ESFERA</button>
-    <button class="chip" type="button" data-toggle="solar" aria-pressed="false">SISTEMA SOLAR</button>
-    <button class="chip" type="button" data-toggle="earth" aria-pressed="false">TIERRA</button>
-    <button class="chip" type="button" data-toggle="keyboard" aria-pressed="false">TECLADO</button>
-    <button class="chip" type="button" data-toggle="notes" aria-pressed="false">NOTAS</button>
-    <button class="chip" type="button" data-toggle="visualizer" aria-pressed="false">VISUALIZADOR</button>
-  </div>
   <div class="gauges">
     <div class="gauge"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/><circle class="value" id="g-cpu" cx="20" cy="20" r="16" pathLength="100"/></svg><b id="n-cpu">--</b><span>CPU</span></div>
     <div class="gauge"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/><circle class="value" id="g-ram" cx="20" cy="20" r="16" pathLength="100"/></svg><b id="n-ram">--</b><span>RAM</span></div>
@@ -228,22 +417,113 @@
 
 <div id="log" aria-live="polite"></div>
 
-<div id="quick">
-  <button class="hud-btn" type="button" data-quick="volume_down">Vol −</button>
-  <button class="hud-btn" type="button" data-quick="volume_up">Vol +</button>
-  <button class="hud-btn" type="button" data-quick="mute">Silencio</button>
-  <button class="hud-btn" type="button" data-quick="play_pause">Pausa</button>
-  <button class="hud-btn" type="button" data-quick="lock">Bloquear</button>
-  <button class="hud-btn" type="button" data-quick="previous">Anterior</button>
-  <button class="hud-btn" type="button" data-quick="next">Siguiente</button>
-  <button class="hud-btn" type="button" data-chat="Dime el estado de la PC: CPU, RAM y disco.">Estado</button>
-  <button class="hud-btn power" type="button" data-chat="Apaga la PC.">Apagar</button>
-  <button class="hud-btn power" type="button" data-chat="Reinicia la PC.">Reiniciar</button>
+<div id="media-row" aria-label="Música">
+  <button class="icon-btn" type="button" data-quick="volume_down" aria-label="Bajar volumen"><svg class="ico" aria-hidden="true"><use href="#i-vol-down"/></svg></button>
+  <button class="icon-btn" type="button" data-quick="previous" aria-label="Anterior"><svg class="ico" aria-hidden="true"><use href="#i-prev"/></svg></button>
+  <button class="icon-btn" type="button" data-quick="play_pause" aria-label="Pausa o reproducir"><svg class="ico" aria-hidden="true"><use href="#i-play-pause"/></svg></button>
+  <button class="icon-btn" type="button" data-quick="next" aria-label="Siguiente"><svg class="ico" aria-hidden="true"><use href="#i-next"/></svg></button>
+  <button class="icon-btn" type="button" data-quick="volume_up" aria-label="Subir volumen"><svg class="ico" aria-hidden="true"><use href="#i-vol-up"/></svg></button>
 </div>
 <form id="form">
   <input id="input" autocomplete="off" placeholder="Escribe una orden" aria-label="Mensaje">
-  <button id="send" class="hud-btn">Enviar</button>
+  <button id="send" class="hud-btn" aria-label="Enviar"><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg><span>Enviar</span></button>
 </form>
+<nav id="dock" aria-label="Navegación">
+  <button type="button" data-open="control-panel"><svg class="ico" aria-hidden="true"><use href="#i-sliders"/></svg><span>CONTROL</span></button>
+  <button type="button" data-open="life-open"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg><span>MI VIDA</span></button>
+  <button type="button" data-open="screen-open"><svg class="ico" aria-hidden="true"><use href="#i-monitor"/></svg><span>PANTALLA</span></button>
+  <button type="button" data-open="commands-open"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg><span>COMANDOS</span></button>
+  <button type="button" data-open="files-open"><svg class="ico" aria-hidden="true"><use href="#i-folder"/></svg><span>ARCHIVOS</span></button>
+</nav>
+
+<section id="control-panel" class="panel" hidden aria-label="Centro de control">
+  <div class="panel-head">
+    <span>CENTRO DE CONTROL</span>
+    <button class="hud-btn" type="button" data-close="control-panel">Cerrar</button>
+  </div>
+  <nav class="cat-tabs" aria-label="Categorías">
+    <button type="button" data-cat="cat-media">Música</button>
+    <button type="button" data-cat="cat-jarvis">Jarvis</button>
+    <button type="button" data-cat="cat-holo">Holograma</button>
+    <button type="button" data-cat="cat-visual">Visuales</button>
+    <button type="button" data-cat="cat-air">En el aire</button>
+    <button type="button" data-cat="cat-remote">Remoto</button>
+    <button type="button" data-cat="cat-system">Sistema</button>
+  </nav>
+  <div class="control-scroll">
+    <section class="cat" id="cat-media">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-vol-up"/></svg>Música y volumen</h3>
+      <div class="tiles">
+        <button class="tile" type="button" data-quick="volume_down"><svg class="ico" aria-hidden="true"><use href="#i-vol-down"/></svg><span class="label">Bajar volumen</span></button>
+        <button class="tile" type="button" data-quick="volume_up"><svg class="ico" aria-hidden="true"><use href="#i-vol-up"/></svg><span class="label">Subir volumen</span></button>
+        <button class="tile" type="button" data-quick="mute"><svg class="ico" aria-hidden="true"><use href="#i-mute"/></svg><span class="label">Silencio</span></button>
+        <button class="tile" type="button" data-quick="play_pause"><svg class="ico" aria-hidden="true"><use href="#i-play-pause"/></svg><span class="label">Pausa / Play</span></button>
+        <button class="tile" type="button" data-quick="previous"><svg class="ico" aria-hidden="true"><use href="#i-prev"/></svg><span class="label">Anterior</span></button>
+        <button class="tile" type="button" data-quick="next"><svg class="ico" aria-hidden="true"><use href="#i-next"/></svg><span class="label">Siguiente</span></button>
+      </div>
+    </section>
+    <section class="cat" id="cat-jarvis">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-chip"/></svg>Jarvis</h3>
+      <div class="tiles">
+        <button class="tile" type="button" id="listener-toggle" aria-pressed="false" hidden><svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg><span class="label">Escucha PC</span></button>
+        <button class="tile" type="button" id="dictation-toggle" aria-pressed="false" hidden><svg class="ico" aria-hidden="true"><use href="#i-text"/></svg><span class="label">Dictado</span></button>
+        <button class="tile" type="button" id="presence-toggle" aria-pressed="false" hidden><svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg><span class="label">Presencia</span></button>
+        <button class="tile" type="button" data-toggle="guard" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Guardia</span></button>
+        <button class="tile" type="button" data-toggle="orb" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-orb"/></svg><span class="label">Orbe</span></button>
+        <button class="tile" type="button" data-toggle="subtitles" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-captions"/></svg><span class="label">Subtítulos</span></button>
+        <button class="tile" type="button" data-toggle="local" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-chip"/></svg><span class="label">Solo local</span></button>
+        <button class="tile" type="button" id="push-toggle" aria-pressed="false" hidden><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg><span class="label">Notificaciones</span></button>
+      </div>
+    </section>
+    <section class="cat" id="cat-holo">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-hand"/></svg>Modo holograma</h3>
+      <div class="tiles" id="modes">
+        <button class="tile wide" type="button" id="hologram-toggle" aria-pressed="false" hidden><svg class="ico" aria-hidden="true"><use href="#i-hand"/></svg><span class="label">Holograma</span></button>
+        <button class="tile" type="button" data-toggle="panels" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-sidebar"/></svg><span class="label">Paneles laterales</span></button>
+        <button class="tile" type="button" data-toggle="taskbar" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-dock"/></svg><span class="label">Barra de tareas</span></button>
+      </div>
+    </section>
+    <section class="cat" id="cat-visual">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-sphere"/></svg>Hologramas visuales</h3>
+      <div class="tiles" id="holo-chips">
+        <button class="tile" type="button" data-toggle="scanner" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-target"/></svg><span class="label">Escáner</span></button>
+        <button class="tile" type="button" data-toggle="effects" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg><span class="label">Efectos</span></button>
+        <button class="tile" type="button" data-toggle="globe" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-sphere"/></svg><span class="label">Esfera</span></button>
+        <button class="tile" type="button" data-toggle="solar" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-orbit"/></svg><span class="label">Sistema solar</span></button>
+        <button class="tile" type="button" data-toggle="earth" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-earth"/></svg><span class="label">Tierra</span></button>
+        <button class="tile" type="button" data-toggle="visualizer" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-bars"/></svg><span class="label">Visualizador</span></button>
+        <button class="tile" type="button" data-toggle="life" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg><span class="label">Mi vida</span></button>
+      </div>
+    </section>
+    <section class="cat" id="cat-air">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Herramientas en el aire</h3>
+      <div class="tiles">
+        <button class="tile" type="button" data-toggle="draw" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg><span class="label">Dibujo</span></button>
+        <button class="tile" type="button" data-toggle="keyboard" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-keyboard"/></svg><span class="label">Teclado</span></button>
+        <button class="tile" type="button" data-toggle="notes" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-note"/></svg><span class="label">Notas</span></button>
+      </div>
+    </section>
+    <section class="cat" id="cat-remote">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-monitor"/></svg>Control remoto</h3>
+      <div class="tiles">
+        <button class="tile" type="button" id="screen-open"><svg class="ico" aria-hidden="true"><use href="#i-monitor"/></svg><span class="label">Pantalla en vivo</span></button>
+        <button class="tile" type="button" id="files-open"><svg class="ico" aria-hidden="true"><use href="#i-folder"/></svg><span class="label">Archivos</span></button>
+        <button class="tile" type="button" id="commands-open"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg><span class="label">Comandos</span></button>
+        <button class="tile" type="button" id="life-open"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg><span class="label">Mi vida</span></button>
+        <button class="tile" type="button" data-toggle="record" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-record"/></svg><span class="label">Grabar</span></button>
+      </div>
+    </section>
+    <section class="cat" id="cat-system">
+      <h3><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg>Sistema</h3>
+      <div class="tiles">
+        <button class="tile" type="button" data-chat="estado de la PC"><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg><span class="label">Estado</span></button>
+        <button class="tile" type="button" data-quick="lock"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg><span class="label">Bloquear</span></button>
+        <button class="tile power" type="button" data-chat="Apaga la PC."><svg class="ico" aria-hidden="true"><use href="#i-power"/></svg><span class="label">Apagar</span></button>
+        <button class="tile power" type="button" data-chat="Reinicia la PC."><svg class="ico" aria-hidden="true"><use href="#i-restart"/></svg><span class="label">Reiniciar</span></button>
+      </div>
+    </section>
+  </div>
+</section>
 
 <section id="screen-panel" class="panel" hidden aria-label="Pantalla de la PC">
   <div class="panel-head">
@@ -252,10 +532,10 @@
   </div>
   <div id="screen-view"><img id="screen-img" alt="Pantalla de la PC; toca para hacer clic, mantén pulsado para clic derecho"></div>
   <div class="tools-row">
-    <button class="hud-btn" type="button" data-scroll="5">▲ Subir</button>
-    <button class="hud-btn" type="button" data-scroll="-5">▼ Bajar</button>
-    <button class="hud-btn" type="button" data-keys="enter">Enter</button>
-    <button class="hud-btn" type="button" data-keys="backspace">⌫</button>
+    <button class="hud-btn" type="button" data-scroll="5"><svg class="ico" aria-hidden="true"><use href="#i-up"/></svg><span>Subir</span></button>
+    <button class="hud-btn" type="button" data-scroll="-5"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg><span>Bajar</span></button>
+    <button class="hud-btn" type="button" data-keys="enter"><svg class="ico" aria-hidden="true"><use href="#i-enter"/></svg><span>Enter</span></button>
+    <button class="hud-btn" type="button" data-keys="backspace"><svg class="ico" aria-hidden="true"><use href="#i-backspace"/></svg><span>Borrar</span></button>
     <button class="hud-btn" type="button" data-keys="esc">Esc</button>
     <button class="hud-btn" type="button" data-keys="alt+tab">Alt+Tab</button>
   </div>
@@ -263,6 +543,41 @@
     <input id="remote-input" autocomplete="off" placeholder="Escribir en la PC" aria-label="Texto para escribir en la PC">
     <button class="hud-btn">Escribir</button>
   </form>
+</section>
+
+<section id="life-panel" class="panel" hidden aria-label="Mi vida">
+  <div class="panel-head">
+    <span>MI VIDA <small id="life-date"></small></span>
+    <span>
+      <button class="hud-btn" type="button" id="life-holo">Ver en holograma</button>
+      <button class="hud-btn" type="button" data-close="life-panel">Cerrar</button>
+    </span>
+  </div>
+  <nav class="cat-tabs" id="life-tabs" aria-label="Secciones">
+    <button type="button" data-page="today" class="on">Hoy</button>
+    <button type="button" data-page="tasks">Tareas</button>
+    <button type="button" data-page="body">Cuerpo</button>
+    <button type="button" data-page="food">Comida</button>
+    <button type="button" data-page="health">Salud</button>
+    <button type="button" data-page="habits">Hábitos</button>
+    <button type="button" data-page="money">Dinero</button>
+    <button type="button" data-page="classes">Clases</button>
+    <button type="button" data-page="calendar">Calendario</button>
+    <button type="button" data-page="ideas">Ideas</button>
+  </nav>
+  <div class="control-scroll" id="life-body"></div>
+</section>
+
+<section id="commands-panel" class="panel" hidden aria-label="Comandos">
+  <div class="panel-head">
+    <span>COMANDOS <small>Se resuelven en tu PC, sin Claude</small></span>
+    <button class="hud-btn" type="button" data-close="commands-panel">Cerrar</button>
+  </div>
+  <div class="tools-row">
+    <button class="chip" type="button" data-toggle="local" aria-pressed="false">SOLO LOCAL</button>
+    <small style="color:var(--muted);align-self:center">Con SOLO LOCAL, Jarvis no usa Claude: solo entiende estos comandos.</small>
+  </div>
+  <div id="commands-list" class="commands-list"></div>
 </section>
 
 <section id="files-panel" class="panel" hidden aria-label="Archivos">
@@ -293,7 +608,8 @@
     error: ['ERROR', 'Toca el núcleo para hablar'],
   };
 
-  const linkedToken = new URLSearchParams(location.hash.slice(1)).get('token');
+  const startHash = new URLSearchParams(location.hash.slice(1));  // se lee antes de limpiar la dirección
+  const linkedToken = startHash.get('token');
   if (linkedToken) {
     localStorage.setItem('jarvis-token', linkedToken);
     history.replaceState(null, '', location.pathname);
@@ -307,6 +623,13 @@
   let voiceOn = localStorage.getItem('jarvis-voice') !== 'off';
   const voiceToggle = document.getElementById('voice-toggle');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+
+  // Cambia el texto de un botón sin borrar su ícono.
+  function setLabel(button, text) {
+    const label = button.querySelector('.label');
+    if (label) label.textContent = text;
+    else button.textContent = text;
+  }
 
   function setState(state) {
     clearTimeout(errorTimer);
@@ -330,11 +653,13 @@
     }, 18);
   }
 
-  function add(text, kind) {
+  function add(text, kind, local = false) {
     const node = document.createElement('div');
     node.className = 'msg ' + kind;
     const label = document.createElement('small');
     label.textContent = { user: 'TÚ', jarvis: 'JARVIS', error: 'SISTEMA' }[kind];
+    if (local) label.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: 'LOCAL' }));
+    if (local) label.title = 'Resuelto en tu PC, sin usar Claude';
     const body = document.createElement('span');
     node.append(label, body);
     log.append(node);
@@ -377,7 +702,7 @@
 
   function showReply(reply, spoken = true) {
     if (reply.say) {
-      add(reply.say, 'jarvis');
+      add(reply.say, 'jarvis', reply.local);
       if (spoken) speak(reply.say);
     }
     if (!reply.pending) return;
@@ -622,8 +947,8 @@
     else if (!busy) startRecording();
   });
 
-  document.getElementById('quick').addEventListener('click', async (event) => {
-    const button = event.target.closest('button');
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-quick], [data-chat]');
     if (!button) return;
     if (!token) {
       add('Primero pega el token.', 'error');
@@ -631,7 +956,8 @@
     }
     if (button.dataset.chat) {
       if (busy) return;
-      add(button.textContent, 'user');
+      document.getElementById('control-panel').hidden = true;  // para ver la respuesta
+      add(button.textContent.replace(/^\W+\s*/u, ''), 'user');
       run(() => api('/api/chat', { message: button.dataset.chat }));
       return;
     }
@@ -695,9 +1021,9 @@
   // Lo que se habla con la escucha de la PC aparece aquí. La PC ya lo dice por sus altavoces.
   const listenerToggle = document.getElementById('listener-toggle');
   const LISTENER_LABELS = {
-    wake: 'ESCUCHA PC: «HEY JARVIS»', listening: 'ESCUCHA PC: OYENDO', thinking: 'ESCUCHA PC: PROCESANDO',
-    speaking: 'ESCUCHA PC: HABLANDO', paused: 'ESCUCHA PC: PAUSADA', error: 'ESCUCHA PC: ERROR', off: 'ESCUCHA PC: INICIANDO',
-    dictating: 'ESCUCHA PC: DICTANDO',
+    wake: 'Escucha · en espera', listening: 'Escucha · oyendo', thinking: 'Escucha · procesando',
+    speaking: 'Escucha · hablando', paused: 'Escucha · en pausa', error: 'Escucha · error', off: 'Escucha · iniciando',
+    dictating: 'Escucha · dictando',
   };
   const LISTENER_STATES = { listening: 'listening', thinking: 'thinking', speaking: 'speaking' };
   let lastEvent = -1;
@@ -706,7 +1032,7 @@
   function showListener(listener) {
     listenerEnabled = listener.enabled;
     listenerToggle.hidden = false;
-    listenerToggle.textContent = listener.enabled ? LISTENER_LABELS[listener.state] || 'ESCUCHA PC' : LISTENER_LABELS.paused;
+    setLabel(listenerToggle, listener.enabled ? LISTENER_LABELS[listener.state] || 'Escucha' : LISTENER_LABELS.paused);
     listenerToggle.setAttribute('aria-pressed', String(listener.enabled));
     listenerToggle.classList.toggle('failed', listener.state === 'error');
     const pageIsFree = !busy && !currentAudio && !(recorder && recorder.state === 'recording');
@@ -722,7 +1048,7 @@
           const data = await response.json();
           for (const event of data.events) {
             if (event.type === 'user') add(event.text, 'user');
-            else if (event.type === 'jarvis') showReply({ say: event.text, pending: event.pending }, false);
+            else if (event.type === 'jarvis') showReply({ say: event.text, pending: event.pending, local: event.local }, false);
             else if (event.type === 'error') add(event.text, 'error');
           }
           lastEvent = data.last;
@@ -755,14 +1081,14 @@
     if (hologramPending) return;
     hologramOn = running;
     hologramToggle.hidden = false;
-    hologramToggle.textContent = running ? 'HOLOGRAMA: ON' : 'HOLOGRAMA: OFF';
+    setLabel(hologramToggle, 'Holograma');
     hologramToggle.setAttribute('aria-pressed', String(running));
   }
 
   hologramToggle.addEventListener('click', async () => {
     if (hologramPending) return;
     hologramPending = true;
-    hologramToggle.textContent = hologramOn ? 'HOLOGRAMA: APAGANDO' : 'HOLOGRAMA: INICIANDO';
+    setLabel(hologramToggle, hologramOn ? 'Holograma · apagando' : 'Holograma · iniciando');
     try {
       const data = await api('/api/hologram', { enabled: !hologramOn });
       hologramPending = false;
@@ -776,8 +1102,8 @@
   // Presencia y dictado.
   const presenceToggle = document.getElementById('presence-toggle');
   const dictationToggle = document.getElementById('dictation-toggle');
-  const PRESENCE_LABELS = { present: 'PRESENCIA: TE VEO', away: 'PRESENCIA: AUSENTE', unknown: 'PRESENCIA: BUSCANDO',
-                            paused: 'PRESENCIA: EN PAUSA', off: 'PRESENCIA: OFF' };
+  const PRESENCE_LABELS = { present: 'Presencia · te veo', away: 'Presencia · ausente', unknown: 'Presencia · buscando',
+                            paused: 'Presencia · en pausa', off: 'Presencia' };
   let presenceOn = false;
   let dictationOn = false;
 
@@ -785,7 +1111,7 @@
     presenceOn = presence.enabled;
     presenceToggle.hidden = false;
     const failed = presence.state.startsWith('error');
-    presenceToggle.textContent = !presence.enabled ? 'PRESENCIA: OFF' : failed ? 'PRESENCIA: ERROR' : PRESENCE_LABELS[presence.state] || 'PRESENCIA';
+    setLabel(presenceToggle, !presence.enabled ? 'Presencia' : failed ? 'Presencia · error' : PRESENCE_LABELS[presence.state] || 'Presencia');
     presenceToggle.title = failed ? presence.state : '';
     presenceToggle.setAttribute('aria-pressed', String(presence.enabled));
     presenceToggle.classList.toggle('failed', failed);
@@ -794,7 +1120,7 @@
   function showDictation(listener) {
     dictationOn = listener.dictation;
     dictationToggle.hidden = false;
-    dictationToggle.textContent = dictationOn ? 'DICTADO: ON' : 'DICTADO: OFF';
+    setLabel(dictationToggle, 'Dictado');
     dictationToggle.setAttribute('aria-pressed', String(dictationOn));
   }
 
@@ -809,7 +1135,7 @@
   dictationToggle.addEventListener('click', async () => {
     try {
       await api('/api/dictation', { enabled: !dictationOn });
-      dictationToggle.textContent = !dictationOn ? 'DICTADO: ON' : 'DICTADO: OFF';
+      setLabel(dictationToggle, 'Dictado');
       if (!dictationOn) add('Dictado activado: habla al micrófono de la PC. Di «fin del dictado» para terminar.', 'jarvis');
     } catch (error) {
       add(error.message, 'error');
@@ -1003,7 +1329,7 @@
     const registration = await navigator.serviceWorker.ready;
     const subscribed = Boolean(await registration.pushManager.getSubscription()) && Notification.permission === 'granted';
     pushToggle.hidden = false;
-    pushToggle.textContent = subscribed ? 'NOTIFICACIONES: ON' : 'NOTIFICACIONES: OFF';
+    setLabel(pushToggle, 'Notificaciones');
     pushToggle.setAttribute('aria-pressed', String(subscribed));
   }
 
@@ -1034,6 +1360,7 @@
     Object.assign(modeState, data.modes || {}, {
       record: Boolean(data.recording && data.recording.recording),
       guard: Boolean(data.presence && data.presence.guard),
+      local: Boolean(data.modes && data.modes.local_only),
     });
     for (const button of document.querySelectorAll('[data-toggle]')) {
       const name = button.dataset.toggle;
@@ -1041,26 +1368,19 @@
       button.setAttribute('aria-pressed', String(Boolean(modeState[name])));
       if (name === 'record') {
         const seconds = data.recording && data.recording.seconds;
-        button.textContent = modeState.record ? `● GRABANDO ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '● GRABAR';
+        setLabel(button, modeState.record ? `Grabando ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : 'Grabar');
       }
     }
   }
 
-  const holoChips = document.getElementById('holo-chips');
-  const holoMore = document.getElementById('holo-more');
-  holoMore.addEventListener('click', () => {
-    holoChips.hidden = !holoChips.hidden;
-    holoMore.setAttribute('aria-expanded', String(!holoChips.hidden));
-    holoMore.textContent = holoChips.hidden ? 'HOLOGRAMAS ▾' : 'HOLOGRAMAS ▴';
-  });
 
   document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-toggle]');
     if (!button || pendingModes.has(button.dataset.toggle)) return;
     const name = button.dataset.toggle;
     pendingModes.add(name);
-    const label = button.textContent;
-    button.textContent = '···';
+    const label = (button.querySelector('.label') || button).textContent;
+    setLabel(button, 'Procesando…');
     try {
       const result = await api('/api/toggle/' + name, { enabled: !modeState[name] });
       add(result.message, 'jarvis');
@@ -1068,7 +1388,393 @@
       add(error.message, 'error');
     }
     pendingModes.delete(name);
-    button.textContent = label;
+    setLabel(button, label);
+  });
+
+  // Lista de comandos locales: tocar uno lo ejecuta.
+  const commandsPanel = document.getElementById('commands-panel');
+  const commandsList = document.getElementById('commands-list');
+  document.getElementById('commands-open').addEventListener('click', async () => {
+    if (!token) return add('Primero pega el token.', 'error');
+    commandsPanel.hidden = false;
+    commandsList.textContent = 'Cargando…';
+    try {
+      const data = await apiGet('/api/commands');
+      commandsList.textContent = '';
+      for (const group of data.groups) {
+        const box = document.createElement('div');
+        box.className = 'command-group';
+        const title = document.createElement('h3');
+        title.textContent = group.category.toUpperCase();
+        box.append(title);
+        for (const example of group.examples) {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.textContent = '«' + example + '»';
+          item.title = 'Tocar para ejecutarlo';
+          item.onclick = () => {
+            commandsPanel.hidden = true;
+            add(example, 'user');
+            run(() => api('/api/chat', { message: example }));
+          };
+          box.append(item);
+        }
+        commandsList.append(box);
+      }
+    } catch (error) {
+      commandsList.textContent = error.message;
+    }
+  });
+
+  // Barra inferior: abre el centro de control o los paneles de pantalla, comandos y archivos.
+  const controlPanel = document.getElementById('control-panel');
+  document.getElementById('dock').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-open]');
+    if (!button) return;
+    if (button.dataset.open === 'control-panel') controlPanel.hidden = false;
+    else document.getElementById(button.dataset.open).click();
+  });
+  // Desde el centro de control, pantalla, comandos y archivos se abren por encima: el centro se cierra.
+  for (const id of ['screen-open', 'files-open', 'commands-open']) {
+    document.getElementById(id).addEventListener('click', () => { controlPanel.hidden = true; });
+  }
+  const tabs = controlPanel.querySelectorAll('[data-cat]');
+  controlPanel.querySelector('.cat-tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-cat]');
+    if (tab) document.getElementById(tab.dataset.cat).scrollIntoView({ block: 'start' });
+  });
+  // La pestaña de la categoría a la vista se resalta.
+  const scroller = controlPanel.querySelector('.control-scroll');
+  scroller.addEventListener('scroll', () => {
+    let current = tabs[0];
+    for (const tab of tabs) {
+      if (document.getElementById(tab.dataset.cat).offsetTop - scroller.offsetTop <= scroller.scrollTop + 40) current = tab;
+    }
+    tabs.forEach((tab) => tab.classList.toggle('on', tab === current));
+  });
+  tabs[0].classList.add('on');
+  // #panel=control abre un panel al cargar (sirve como acceso directo).
+  const startPanel = startHash.get('panel');
+  // Si el panel tiene botón de abrir (carga sus datos), se usa ese botón.
+  if (startPanel && document.getElementById(startPanel + '-open')) setTimeout(() => document.getElementById(startPanel + '-open').click(), 0);
+  else if (startPanel && document.getElementById(startPanel + '-panel')) document.getElementById(startPanel + '-panel').hidden = false;
+
+  // ---------------------------------------------------------------- Mi vida
+  const lifePanel = document.getElementById('life-panel');
+  const lifeBody = document.getElementById('life-body');
+  const DAY_NAMES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  const MOODS = ['Muy mal', 'Mal', 'Normal', 'Bien', 'Excelente'];
+  let lifeData = null;
+  let lifePage = 'today';
+  let lifeMap = null;
+
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    for (const child of children.flat()) if (child !== null && child !== undefined) node.append(child);
+    return node;
+  }
+  const dm = (iso) => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
+
+  async function lifeAction(action, args = {}) {
+    try {
+      const result = await api('/api/life', { action, args });
+      lifeData = result.summary;
+      if (result.say) toast(result.say);
+      renderLife();
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  }
+
+  function toast(text) {
+    const note = document.getElementById('life-date');
+    note.textContent = text;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { note.textContent = lifeData ? lifeData.weekday + ' ' + dm(lifeData.today) : ''; }, 3500);
+  }
+
+  // Un formulario: los campos se envían como datos de la acción; los numéricos van como números.
+  function lifeForm(action, fields, label, extra = {}) {
+    const box = el('form', { className: 'life-form' });
+    for (const field of fields) {
+      let input;
+      if (field.options) {
+        input = el('select', { name: field.name }, field.options.map(([value, text]) => el('option', { value, textContent: text })));
+      } else {
+        input = el('input', { name: field.name, type: field.type || 'text', placeholder: field.label, step: field.step || 'any' });
+      }
+      input.required = !field.optional;
+      input.setAttribute('aria-label', field.label);
+      if (field.full) input.classList.add('full');
+      if (field.value !== undefined) input.value = field.value;
+      box.append(input);
+    }
+    box.append(el('button', { className: 'hud-btn', textContent: label }));
+    box.onsubmit = (event) => {
+      event.preventDefault();
+      const args = { ...extra };
+      for (const field of fields) {
+        const value = box.elements[field.name].value.trim();
+        if (value === '' && field.optional) continue;
+        args[field.name] = field.type === 'number' ? Number(value) : value;
+      }
+      lifeAction(action, args);
+    };
+    return box;
+  }
+
+  function card(title, ...content) {
+    return el('div', { className: 'life-card' }, el('h3', { textContent: title }), ...content);
+  }
+
+  function check(text, done, onToggle, detail = '', onDelete = null) {
+    const box = el('input', { type: 'checkbox', checked: done });
+    box.onchange = () => onToggle(box.checked);
+    const row = el('label', { className: 'life-row' }, box,
+      el('span', { className: 'grow' + (done ? ' life-done' : ''), textContent: text }), detail ? el('small', { textContent: detail }) : null);
+    if (onDelete) {
+      const remove = el('button', { type: 'button', className: 'del', title: 'Borrar', 'aria-label': 'Borrar' });
+      remove.innerHTML = '<svg class="ico"><use href="#i-close"/></svg>';
+      remove.onclick = (event) => { event.preventDefault(); onDelete(); };
+      row.append(remove);
+    }
+    return row;
+  }
+
+  function row(text, detail = '', onDelete = null) {
+    const line = el('div', { className: 'life-row' }, el('span', { className: 'grow', textContent: text }), detail ? el('small', { textContent: detail }) : null);
+    if (onDelete) {
+      const remove = el('button', { type: 'button', className: 'del', title: 'Borrar', 'aria-label': 'Borrar' });
+      remove.innerHTML = '<svg class="ico"><use href="#i-close"/></svg>';
+      remove.onclick = onDelete;
+      line.append(remove);
+    }
+    return line;
+  }
+
+  function stat(label, value, share = null) {
+    return el('div', { className: 'life-stat' }, el('span', { textContent: label }), el('b', { textContent: value }),
+      share === null ? null : el('div', { className: 'life-bar' }, el('i', { style: `width:${Math.min(100, share * 100)}%` })));
+  }
+
+  const PAGES = {
+    today(d) {
+      const cls = d.classes.now || d.classes.next;
+      return [
+        card('RESUMEN DE HOY', el('div', { className: 'life-stats' },
+          stat('CALORÍAS', `${d.food.kcal} / ${d.food.goals.kcal}`, d.food.kcal / d.food.goals.kcal),
+          stat('PROTEÍNA', `${Math.round(d.food.protein)} / ${d.food.goals.protein} g`, d.food.protein / d.food.goals.protein),
+          stat('AGUA', `${d.water.today} / ${d.water.goal} vasos`, d.water.today / d.water.goal),
+          stat('TAREAS', `${d.tasks.length} pendientes`),
+          stat('EJERCICIO', `racha ${d.exercise.streak} días`),
+          stat('GASTADO (MES)', `${d.money.spent} Bs`))),
+        card(d.classes.now ? 'CLASE AHORA' : 'PRÓXIMA CLASE', cls ? row(`${cls.subject} · ${cls.start}–${cls.end}`,
+          [cls.room && 'Aula ' + cls.room, cls.place, cls.teacher].filter(Boolean).join(' · ')) : row('No tienes más clases hoy')),
+        card('¿CÓMO TE SIENTES?', moods(d)),
+        card('PENDIENTES', d.tasks.slice(0, 5).map((t) => check(t.text, false, (on) => lifeAction('task_done', { task: t.id, done: on }), dm(t.due)))),
+        card('PRÓXIMOS DÍAS', [...d.events.map((e) => [e.date, e.title + (e.time ? ' · ' + e.time : '')]),
+          ...d.holidays.map((h) => [h.date, 'Feriado · ' + h.name])].sort().slice(0, 8).map(([date, text]) => row(text, dm(date)))),
+      ];
+    },
+    tasks(d) {
+      return [
+        card('NUEVA TAREA', lifeForm('task_add', [
+          { name: 'text', label: '¿Qué tienes que hacer?', full: true },
+          { name: 'due', label: 'Fecha', type: 'date', optional: true },
+          { name: 'priority', label: 'Prioridad', options: [['normal', 'Normal'], ['alta', 'Urgente']] }], 'Agregar')),
+        card(`PENDIENTES · ${d.tasks.length}`, d.tasks.map((t) => check(t.text + (t.priority === 'alta' ? ' · URGENTE' : ''), false,
+          (on) => lifeAction('task_done', { task: t.id, done: on }), dm(t.due), () => lifeAction('task_delete', { task: t.id })))),
+        card('HECHAS HOY', d.tasks_done_today.map((t) => check(t.text, true, (on) => lifeAction('task_done', { task: t.id, done: on })))),
+      ];
+    },
+    body(d) {
+      const b = d.body;
+      return [
+        card('TU CUERPO', el('div', { className: 'life-stats' },
+          stat('PESO', b.weight ? b.weight + ' kg' : '—'), stat('ESTATURA', b.height_cm ? b.height_cm + ' cm' : '—'),
+          stat('IMC', b.bmi ? `${b.bmi} · ${b.bmi_label}` : '—'), stat('META', b.target_kg ? b.target_kg + ' kg' : 'Ganar músculo'),
+          stat('CALORÍAS / DÍA', d.food.goals.kcal + ' kcal'), stat('PROTEÍNA / DÍA', d.food.goals.protein + ' g'))),
+        card('REGISTRAR PESO', lifeForm('weight', [{ name: 'kg', label: 'Peso en kg', type: 'number' }], 'Guardar peso')),
+        card('MIS DATOS', lifeForm('profile', [
+          { name: 'height_cm', label: 'Estatura en cm', type: 'number', optional: true, value: b.height_cm || '' },
+          { name: 'age', label: 'Edad', type: 'number', optional: true },
+          { name: 'sex', label: 'Sexo', optional: true, options: [['', 'Sexo…'], ['hombre', 'Hombre'], ['mujer', 'Mujer']] },
+          { name: 'target_kg', label: 'Peso objetivo (kg)', type: 'number', optional: true, value: b.target_kg || '' }], 'Guardar')),
+        card('HISTORIAL', b.history.slice().reverse().map((w) => row(w.kg + ' kg', dm(w.date)))),
+      ];
+    },
+    food(d) {
+      return [
+        card('¿QUÉ COMISTE?', lifeForm('meal', [
+          { name: 'text', label: 'Ej: dos salteñas y una coca', full: true },
+          { name: 'meal', label: 'Comida', options: [['desayuno', 'Desayuno'], ['almuerzo', 'Almuerzo'], ['merienda', 'Merienda'], ['cena', 'Cena']] }], 'Anotar')),
+        card('HOY', el('div', { className: 'life-stats' },
+          stat('CALORÍAS', `${d.food.kcal} / ${d.food.goals.kcal}`, d.food.kcal / d.food.goals.kcal),
+          stat('PROTEÍNA', `${Math.round(d.food.protein)} / ${d.food.goals.protein} g`, d.food.protein / d.food.goals.protein)),
+          d.food.meals.map((m) => row(`${m.meal}: ${m.text}`, `${m.kcal} kcal · ${Math.round(m.protein)} g`,
+            () => lifeAction('meal_delete', { meal_id: m.id })))),
+      ];
+    },
+    health(d) {
+      const water = el('div', { className: 'life-form' },
+        el('button', { type: 'button', className: 'hud-btn', textContent: '− vaso', onclick: () => lifeAction('water', { glasses: -1 }) }),
+        el('button', { type: 'button', className: 'hud-btn', textContent: '+ vaso de agua', onclick: () => lifeAction('water', { glasses: 1 }) }));
+      return [
+        card(`AGUA · ${d.water.today} DE ${d.water.goal} VASOS`, water),
+        card('¿CÓMO TE SIENTES?', moods(d)),
+        card(`SUEÑO · ANOCHE ${d.sleep.last ?? '—'} H`, lifeForm('sleep', [{ name: 'hours', label: 'Horas dormidas', type: 'number' }], 'Guardar')),
+        card(`EJERCICIO · RACHA ${d.exercise.streak} DÍAS · ${d.exercise.week_minutes} MIN ESTA SEMANA`,
+          lifeForm('exercise', [{ name: 'kind', label: 'Qué hiciste (pesas, correr…)' }, { name: 'minutes', label: 'Minutos', type: 'number' }], 'Anotar'),
+          d.exercise.recent.slice().reverse().map((e) => row(`${e.kind} · ${e.minutes} min`, dm(e.date)))),
+      ];
+    },
+    habits(d) {
+      return [
+        card('HÁBITOS', lifeForm('habit_add', [{ name: 'name', label: 'Nuevo hábito (leer, meditar…)', full: true }], 'Agregar'),
+          d.habits.map((h) => check(h.name, h.done, (on) => lifeAction('habit_check', { habit: h.id, done: on }),
+            h.streak ? 'RACHA ' + h.streak : '', () => lifeAction('habit_delete', { habit: h.id })))),
+        card('RUTINA DIARIA', lifeForm('routine_add', [{ name: 'text', label: 'Paso de tu rutina' }, { name: 'time', label: 'Hora', type: 'time', optional: true }], 'Agregar'),
+          d.routine.map((r) => check(r.text, r.done, (on) => lifeAction('routine_check', { item: r.id, done: on }),
+            r.time || '', () => lifeAction('routine_delete', { item: r.id })))),
+      ];
+    },
+    money(d) {
+      const m = d.money;
+      return [
+        card('ESTE MES', el('div', { className: 'life-stats' }, stat('GASTADO', m.spent + ' Bs'), stat('INGRESOS', m.income + ' Bs'),
+          stat('AHORRADO', m.saved + ' Bs' + (m.goal ? ' de ' + m.goal : ''), m.goal ? m.saved / m.goal : null)),
+          Object.entries(m.categories).map(([name, amount]) => row(name, amount + ' Bs'))),
+        card('ANOTAR', lifeForm('money', [
+          { name: 'amount', label: 'Monto (Bs)', type: 'number' }, { name: 'category', label: 'Categoría (comida, pasajes…)' },
+          { name: 'note', label: 'Nota', optional: true },
+          { name: 'kind', label: 'Tipo', options: [['gasto', 'Gasto'], ['ingreso', 'Ingreso'], ['ahorro', 'Ahorro']] }], 'Guardar')),
+        card('META DE AHORRO', lifeForm('savings_goal', [{ name: 'amount', label: 'Meta en Bs', type: 'number' }], 'Guardar meta')),
+        card('MOVIMIENTOS', m.recent.slice().reverse().map((x) => row(`${x.kind === 'gasto' ? '−' : '+'} ${x.amount} Bs · ${x.note || x.category}`,
+          dm(x.date), () => lifeAction('money_delete', { item: x.id })))),
+      ];
+    },
+    classes(d) {
+      return [
+        card('NUEVA CLASE', lifeForm('class_add', [
+          { name: 'subject', label: 'Materia', full: true },
+          { name: 'day', label: 'Día', options: DAY_NAMES.map((n) => [n, n[0].toUpperCase() + n.slice(1)]) },
+          { name: 'start', label: 'Inicio', type: 'time' }, { name: 'end', label: 'Fin', type: 'time' },
+          { name: 'room', label: 'Aula', optional: true }, { name: 'place', label: 'Lugar / edificio', optional: true },
+          { name: 'teacher', label: 'Docente', optional: true }], 'Agregar clase')),
+        ...DAY_NAMES.map((name, i) => {
+          const items = d.classes.week.filter((c) => c.day === i);
+          return items.length ? card(name.toUpperCase(), items.map((c) => row(`${c.start}–${c.end} · ${c.subject}`,
+            [c.room && 'Aula ' + c.room, c.place, c.teacher].filter(Boolean).join(' · '), () => lifeAction('class_delete', { item: c.id })))) : null;
+        }).filter(Boolean),
+      ];
+    },
+    calendar(d) {
+      return [
+        card('NUEVO EVENTO', lifeForm('event_add', [
+          { name: 'title', label: 'Qué (examen, cita, cumpleaños…)', full: true }, { name: 'day', label: 'Fecha', type: 'date' },
+          { name: 'time', label: 'Hora', type: 'time', optional: true }, { name: 'place', label: 'Lugar', optional: true }], 'Agregar')),
+        card('PRÓXIMOS 30 DÍAS', d.events.map((e) => row(e.title + (e.time ? ' · ' + e.time : '') + (e.place ? ' · ' + e.place : ''), dm(e.date),
+          () => lifeAction('event_delete', { event: e.id })))),
+        card('FERIADOS · BOLIVIA Y COCHABAMBA', d.holidays.map((h) => row(h.name, dm(h.date)))),
+      ];
+    },
+    ideas(d) {
+      const maps = d.maps;
+      if (!maps.find((m) => m.id === lifeMap)) lifeMap = maps.length ? maps[0].id : null;
+      const current = maps.find((m) => m.id === lifeMap);
+      const picker = el('div', { className: 'life-form' }, maps.map((m) => el('button', {
+        type: 'button', className: 'hud-btn' + (m.id === lifeMap ? ' hit' : ''), textContent: (m.kind === 'flujo' ? 'Flujo · ' : 'Ideas · ') + m.name,
+        onclick: () => { lifeMap = m.id; renderLife(); } })));
+      const parts = [card('NUEVO MAPA O DIAGRAMA', lifeForm('map_add', [
+        { name: 'name', label: 'Nombre', full: true },
+        { name: 'kind', label: 'Tipo', options: [['ideas', 'Mapa de ideas'], ['flujo', 'Diagrama de flujo']] }], 'Crear'), picker)];
+      if (current) {
+        parts.push(card(current.name.toUpperCase(), drawMap(current),
+          lifeForm('node_add', [
+            { name: 'text', label: current.kind === 'flujo' ? 'Paso o pregunta' : 'Idea', full: true },
+            { name: 'parent', label: 'Conectar a', optional: true, options: [['', 'Sin conectar'], ...current.nodes.map((n) => [n.id, n.text])] },
+            { name: 'shape', label: 'Forma', options: [['box', 'Caja'], ['diamond', 'Decisión'], ['oval', 'Inicio / fin']] },
+            { name: 'label', label: 'Texto de la flecha (sí, no…)', optional: true }], 'Agregar', { map_: current.id }),
+          current.nodes.map((n) => row(n.text, '', () => lifeAction('node_delete', { map_: current.id, node: n.id }))),
+          el('button', { type: 'button', className: 'hud-btn deny', textContent: 'Borrar este mapa',
+            onclick: () => confirm('¿Borrar «' + current.name + '»?') && lifeAction('map_delete', { map_: current.id }) })));
+      }
+      return parts;
+    },
+  };
+
+  function moods(d) {
+    const today = (d.mood.today || {}).score;
+    // Escala del 1 al 5: cada nivel con su número y su nombre.
+    return el('div', { className: 'moods' }, MOODS.map((name, i) => el('button', {
+      type: 'button', className: (today === i + 1 ? 'on ' : '') + 'mood-' + (i + 1),
+      onclick: () => lifeAction('mood', { score: i + 1 }) }, el('b', { textContent: String(i + 1) }), el('span', { textContent: name }))));
+  }
+
+  // Vista del mapa en SVG (para moverlos, usa las manos en el holograma).
+  function drawMap(chart) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 1000 600');
+    svg.classList.add('life-map');
+    const nodes = Object.fromEntries(chart.nodes.map((n) => [n.id, n]));
+    const make = (tag, attrs) => { const node = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v); return node; };
+    for (const link of chart.links) {
+      const a = nodes[link.from], b = nodes[link.to];
+      if (!a || !b) continue;
+      svg.append(make('line', { x1: a.x * 1000, y1: a.y * 600, x2: b.x * 1000, y2: b.y * 600, stroke: '#be96ff', 'stroke-width': 2 }));
+      if (link.label) svg.append(Object.assign(make('text', { x: (a.x + b.x) * 500 + 6, y: (a.y + b.y) * 300 - 6, fill: '#ffb547', 'font-size': 18 }), { textContent: link.label }));
+    }
+    for (const n of chart.nodes) {
+      const x = n.x * 1000, y = n.y * 600, w = Math.max(120, n.text.length * 11 + 30);
+      const shape = n.shape === 'diamond'
+        ? make('polygon', { points: `${x},${y - 34} ${x + w / 2 + 10},${y} ${x},${y + 34} ${x - w / 2 - 10},${y}` })
+        : make('rect', { x: x - w / 2, y: y - 24, width: w, height: 48, rx: n.shape === 'oval' ? 24 : 6 });
+      shape.setAttribute('fill', '#140a28');
+      shape.setAttribute('stroke', '#be96ff');
+      shape.setAttribute('stroke-width', 2);
+      svg.append(shape);
+      svg.append(Object.assign(make('text', { x, y: y + 6, fill: '#fff', 'font-size': 18, 'text-anchor': 'middle' }), { textContent: n.text }));
+    }
+    return svg;
+  }
+
+  function renderLife() {
+    if (!lifeData) return;
+    lifeBody.textContent = '';
+    lifeBody.append(...PAGES[lifePage](lifeData));
+    if (!toast.timer) document.getElementById('life-date').textContent = lifeData.weekday + ' ' + dm(lifeData.today);
+  }
+
+  document.getElementById('life-tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-page]');
+    if (!tab) return;
+    lifePage = tab.dataset.page;
+    document.querySelectorAll('#life-tabs [data-page]').forEach((b) => b.classList.toggle('on', b === tab));
+    renderLife();
+    lifeBody.scrollTop = 0;
+  });
+
+  document.getElementById('life-holo').addEventListener('click', async () => {
+    const page = lifePage === 'health' ? 'habits' : lifePage;
+    try {
+      add((await api('/api/life/show/' + page, {})).message, 'jarvis');
+    } catch (error) {
+      add(error.message, 'error');
+    }
+  });
+
+  document.getElementById('life-open').addEventListener('click', async () => {
+    if (!token) return add('Primero pega el token.', 'error');
+    document.getElementById('control-panel').hidden = true;
+    lifePanel.hidden = false;
+    lifeBody.textContent = 'Cargando…';
+    try {
+      lifeData = await apiGet('/api/life');
+      renderLife();
+    } catch (error) {
+      lifeBody.textContent = error.message;
+    }
   });
 
   showPush();

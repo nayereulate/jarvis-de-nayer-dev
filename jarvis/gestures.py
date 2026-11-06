@@ -91,9 +91,9 @@ def hand_pose(points: list[tuple[float, float]]) -> str:
         return "three"
     thumb_out = distance(points[4], points[5]) > distance(points[0], points[9]) * 0.6
     if folded(8, 6) and folded(12, 10) and folded(16, 14) and extended(20, 18) and thumb_out:
-        return "shaka"  # 🤙 pulgar y meñique: la perilla de volumen
+        return "shaka"  # pulgar y meñique: la perilla de volumen
     if extended(8, 6) and folded(12, 10) and folded(16, 14) and extended(20, 18):
-        return "rock"  # 🤘 índice y meñique: el menú radial
+        return "rock"  # índice y meñique: el menú radial
     if extended(8, 6) and extended(12, 10) and folded(16, 14) and folded(20, 18) and pinch_ratio(points) > PINCH_OFF:
         return "two"
     return "other"
@@ -453,7 +453,7 @@ class Engine:
             self.scroll_rest = 0.0
             return
         direction = 1 if offset > 0 else -1
-        self.status = "SCROLL ▲" if direction > 0 else "SCROLL ▼"
+        self.status = "SCROLL ARRIBA" if direction > 0 else "SCROLL ABAJO"
         self.scroll_rest += direction * min(SCROLL_MAX, beyond / SCROLL_SPEED) * dt
         steps = int(self.scroll_rest)
         if steps:

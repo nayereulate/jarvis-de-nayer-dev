@@ -12,10 +12,11 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import briefing, files, push, recorder, screen, speech, tools, voice
+from . import briefing, commands, files, push, recorder, screen, speech, tools, voice
 from .brain import DATA_DIR, Brain, BrainError, audit
 from .events import Events
 from .listener import Listener
+from .life import LifeError, life
 from .notes import notes
 from .presence import Presence
 from .reminders import reminders
@@ -38,6 +39,7 @@ TOGGLES = {  # lo que la página puede encender y apagar directamente
     "orb": ("orb_on", "orb_off"),
     "guard": ("guard_on", "guard_off"),
     "record": ("record_start", "record_stop"),
+    "local": ("local_on", "local_off"),
 }
 
 log = logging.getLogger("jarvis.server")
@@ -92,9 +94,9 @@ def on_reminder(item: dict) -> None:
     audit("reminder_due", **item)
     if item.get("kind") == "timer":
         label = "" if item["text"] == "temporizador" else f": {item['text']}"
-        announce(f"Se acabó el temporizador{label}.", title="⏱ Temporizador", alarm=True)
+        announce(f"Se acabó el temporizador{label}.", title="Temporizador", alarm=True)
     elif item.get("alarm"):
-        announce(f"Alarma: {item['text']}. Repito: {item['text']}.", title="⏰ Alarma", alarm=True)
+        announce(f"Alarma: {item['text']}. Repito: {item['text']}.", title="Alarma", alarm=True)
     else:
         announce(f"Recordatorio: {item['text']}", title="Recordatorio", alarm=True)
 
@@ -116,7 +118,7 @@ def on_presence(kind: str, info: dict) -> None:
         tools.lock_pc()
         events.publish("jarvis", text="No te vi frente a la PC: la bloqueé.", pending=None)
     elif kind == "stranger":
-        notify_phone("⚠ Jarvis", "Alguien que no conozco se sentó frente a tu PC. La bloqueé.")
+        notify_phone("Jarvis · Guardia", "Alguien que no conozco se sentó frente a tu PC. La bloqueé.")
         announce("No te reconozco. Por seguridad, bloqueo el equipo.", then=tools.lock_pc)
 
 
@@ -226,8 +228,11 @@ async def status() -> dict:
 
 
 @app.get("/api/events", dependencies=[Depends(require_token)])
-def get_events(after: int = -1) -> dict:
+def get_events(after: int = -1, history: int = 0) -> dict:
+    """history: con after < 0, devuelve también los últimos mensajes de la conversación."""
     items, last = events.since(after)
+    if after < 0 and history:
+        items = events.recent({"user", "jarvis", "error"}, min(history, 20))
     return {
         "events": items,
         "last": last,
@@ -260,6 +265,39 @@ def delete_note(note_id: str) -> dict:
         return notes.delete(note_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+class LifeRequest(BaseModel):
+    action: str = Field(min_length=1, max_length=40)
+    args: dict = Field(default_factory=dict)
+
+
+@app.get("/api/life", dependencies=[Depends(require_token)])
+def get_life() -> dict:
+    return life.summary()
+
+
+@app.post("/api/life", dependencies=[Depends(require_token)])
+def change_life(request: LifeRequest) -> dict:
+    try:
+        result = life.apply(request.action, request.args)
+    except (LifeError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    audit("life", action=request.action)
+    return result
+
+
+@app.post("/api/life/show/{page}", dependencies=[Depends(require_token)])
+async def show_life(page: str) -> dict:
+    outcome = await asyncio.to_thread(tools.execute, "life_show", {"page": page})
+    if not outcome["ok"]:
+        raise HTTPException(status_code=400, detail=outcome["error"])
+    return {"message": outcome["result"]}
+
+
+@app.get("/api/commands", dependencies=[Depends(require_token)])
+def list_commands() -> dict:
+    return {"groups": commands.catalog(), "local_only": tools.settings["local_only"]}
 
 
 @app.post("/api/toggle/{name}", dependencies=[Depends(require_token)])
@@ -322,11 +360,25 @@ async def quick(action: str) -> dict:
 
 
 @app.post("/api/chat", dependencies=[Depends(require_token)])
-async def chat(request: ChatRequest) -> dict:
+async def chat(request: ChatRequest, announce_reply: bool = False) -> dict:
+    """announce_reply: la orden llegó desde el holograma; la conversación se publica y se dice en voz alta."""
+    if announce_reply:
+        events.publish("user", text=request.message)
     try:
-        return await asyncio.to_thread(brain.chat, request.message)
+        reply = await asyncio.to_thread(brain.chat, request.message)
     except BrainError as error:
+        if announce_reply:
+            events.publish("error", text=str(error))
         raise HTTPException(status_code=502, detail=str(error)) from error
+    if announce_reply:
+        publish_reply(reply)
+    return reply
+
+
+def publish_reply(reply: dict) -> None:
+    events.publish("jarvis", text=reply["say"], pending=reply["pending"], local=reply.get("local", False))
+    if reply["say"]:
+        in_background(lambda: speaker.say(reply["say"]))
 
 
 @app.post("/api/transcribe", dependencies=[Depends(require_token)])
@@ -352,9 +404,13 @@ async def speak(request: SpeakRequest) -> Response:
 
 
 @app.post("/api/confirm/{pending_id}", dependencies=[Depends(require_token)])
-async def confirm(pending_id: str, request: ConfirmRequest) -> dict:
+async def confirm(pending_id: str, request: ConfirmRequest, announce_reply: bool = False) -> dict:
+    """announce_reply: la aprobación llegó desde el holograma; la respuesta se publica y se dice en voz alta."""
     try:
-        return await asyncio.to_thread(brain.resolve, pending_id, request.approved)
+        reply = await asyncio.to_thread(brain.resolve, pending_id, request.approved)
+        if announce_reply:
+            publish_reply(reply)
+        return reply
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Esa confirmación ya no existe") from error
     except BrainError as error:

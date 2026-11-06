@@ -120,6 +120,7 @@ class Feed(QThread):
     """Datos para los paneles: uso de la PC y lo último que se habló con Jarvis."""
 
     updated = Signal(dict)
+    want_life = False  # el panel «Mi vida» está a la vista
 
     def run(self):
         token = TOKEN_FILE.read_text(encoding="utf-8").strip() if TOKEN_FILE.exists() else ""
@@ -129,18 +130,25 @@ class Feed(QThread):
         psutil.cpu_percent()
         while not self.isInterruptionRequested():
             data = {"cpu": psutil.cpu_percent(), "ram": psutil.virtual_memory().percent, "messages": [],
-                    "modes": None, "notes": None}
+                    "modes": None, "notes": None, "chat": [], "status": None,
+                    "disk": psutil.disk_usage(os.environ.get("SystemDrive", "C:") + "\\").percent}
             if tick % 6 == 0:
                 gpu = read_gpu()
             data["gpu"] = gpu
             try:
-                request = urllib.request.Request(f"{SERVER}/api/events?after={after}",
+                request = urllib.request.Request(f"{SERVER}/api/events?after={after}&history=10",
                                                  headers={"Authorization": f"Bearer {token}"})
                 with urllib.request.urlopen(request, timeout=2) as response:
                     events = json.load(response)
                 after = events["last"]
                 data["modes"] = events.get("modes")
                 data["notes"] = events.get("notes")
+                data["status"] = events
+                data["chat"] = [event for event in events["events"] if event["type"] in ("user", "jarvis", "error")]
+                if self.want_life:
+                    request = urllib.request.Request(f"{SERVER}/api/life", headers={"Authorization": f"Bearer {token}"})
+                    with urllib.request.urlopen(request, timeout=3) as response:
+                        data["life"] = json.load(response)
                 data["messages"] = [(event["type"], event["text"]) for event in events["events"]
                                     if event["type"] in ("user", "jarvis") and event.get("text")]
             except Exception:
@@ -150,15 +158,15 @@ class Feed(QThread):
             self.msleep(500)
 
 
-def call_server(method: str, path: str, body: dict | None = None) -> None:
-    """Avisa al servidor en segundo plano (mover o borrar una nota)."""
+def call_server(method: str, path: str, body: dict | None = None, timeout: float = 5) -> None:
+    """Avisa al servidor en segundo plano (botones, notas, autorizaciones)."""
     def send():
         try:
             token = TOKEN_FILE.read_text(encoding="utf-8").strip()
             request = urllib.request.Request(f"{SERVER}{path}", method=method,
                                              data=json.dumps(body).encode() if body is not None else None,
                                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
-            urllib.request.urlopen(request, timeout=5).close()
+            urllib.request.urlopen(request, timeout=timeout).close()
         except Exception as error:
             print(f"No pude avisar al servidor: {error}", flush=True)
     threading.Thread(target=send, daemon=True).start()
@@ -167,11 +175,24 @@ def call_server(method: str, path: str, body: dict | None = None) -> None:
 class Floating:
     """Lo que flota y se pellizca (teclado y notas). Engine da píxeles de pantalla; aquí se pasan a la ventana."""
 
-    def __init__(self, keyboard, notes, flags, to_window):
+    def __init__(self, keyboard, notes, flags, to_window, panels, dock, life):
         self.keyboard, self.notes, self.flags, self.to_window = keyboard, notes, flags, to_window
+        self.panels, self.dock, self.life = panels, dock, life
 
     def hit(self, point):
         p = self.to_window(point)
+        if self.flags.get("taskbar"):
+            card = self.dock.hit(p)
+            if card is not None:
+                return ("dock", card)
+        if self.flags.get("panels"):
+            button = self.panels.hit(p)
+            if button is not None:
+                return ("panel", button)
+        if self.flags.get("life"):
+            item = self.life.hit(p)
+            if item is not None:
+                return ("life", item)
         if self.flags.get("keyboard"):
             key = self.keyboard.hit(p)
             if key is not None:
@@ -184,7 +205,13 @@ class Floating:
 
     def press(self, token, point):
         kind, value = token
-        if kind == "key":
+        if kind == "dock":
+            self.dock.press(value)
+        elif kind == "panel":
+            self.panels.press(value, self.to_window(point))
+        elif kind == "life":
+            self.life.press(value, self.to_window(point))
+        elif kind == "key":
             self.keyboard.press(value)
         else:
             self.notes.press(value, self.to_window(point))
@@ -192,10 +219,18 @@ class Floating:
     def drag(self, token, point):
         if token[0] == "note":
             self.notes.drag(token[1], self.to_window(point))
+        elif token[0] == "panel":
+            self.panels.drag(token[1], self.to_window(point))
+        elif token[0] == "life":
+            self.life.drag(token[1], self.to_window(point))
 
     def release(self, token, point):
         if token[0] == "note":
             self.notes.release(token[1])
+        elif token[0] == "panel":
+            self.panels.release(token[1])
+        elif token[0] == "life":
+            self.life.release(token[1])
 
     def fist(self, point):
         return bool(self.flags.get("notes")) and self.notes.erase_at(self.to_window(point))
@@ -313,6 +348,7 @@ class Overlay(QWidget):
         self.globe = None  # dict de Engine.globe cuando la esfera está a la vista
         self.knob = None  # (punto, nivel)
         self.extras = lambda painter: None  # los hologramas de holoviz
+        self.classic = True  # sin paneles laterales, el reloj arriba y el último mensaje abajo
         self.font = QFont("Consolas", 11)
         self.big = QFont("Consolas", 30)
         self.small = QFont("Consolas", 9)
@@ -343,8 +379,9 @@ class Overlay(QWidget):
         painter.setFont(self.font)
         painter.setPen(CYAN)
         painter.drawText(24, 36, "J.A.R.V.I.S. · MODO HOLOGRAMA" + (f" · {self.status}" if self.status else ""))
-        self._draw_panel(painter)
-        self._draw_message(painter)
+        if self.classic:
+            self._draw_panel(painter)
+            self._draw_message(painter)
 
     def _draw_strokes(self, painter):
         """Trazos de luz: un halo ancho y suave con una línea brillante encima."""
@@ -508,9 +545,55 @@ def main():
         _, kind, target = holoviz.MENU_ITEMS[index]
         in_thread(lambda: tools.open_app(target) if kind == "app" else tools.open_url(target))
 
-    engine = Engine(winctl.Windows(exclude={int(background.winId()), int(overlay.winId())}), winctl.Cursor(),
+    def panel_action(kind, value):
+        if kind == "quick":
+            call_server("POST", f"/api/quick/{value}", {})
+        elif kind == "toggle":
+            name, enabled = value
+            call_server("POST", f"/api/toggle/{name}", {"enabled": enabled}, timeout=60)
+        elif kind == "listener":
+            call_server("POST", "/api/listener", {"enabled": value})
+        elif kind == "dictation":
+            call_server("POST", "/api/dictation", {"enabled": value})
+        elif kind == "presence":
+            call_server("POST", "/api/presence", {"enabled": value})
+        elif kind == "chat":
+            call_server("POST", "/api/chat?announce_reply=true", {"message": value}, timeout=240)
+        elif kind == "hologram_off":
+            call_server("POST", "/api/hologram", {"enabled": False})
+        elif kind == "confirm":
+            pending_id, approved = value
+            call_server("POST", f"/api/confirm/{pending_id}?announce_reply=true", {"approved": approved}, timeout=240)
+
+    windows = winctl.Windows(exclude={int(background.winId()), int(overlay.winId())})
+    life_panel = holoviz.LifePanel(
+        lambda action, args: call_server("POST", "/api/life", {"action": action, "args": args}),
+        lambda page: call_server("POST", f"/api/life/show/{page}", {}),
+    )
+    panels = holoviz.SidePanels(panel_action)
+    dock = holoviz.Dock(lambda hwnd: in_thread(lambda: winctl.activate(hwnd)),
+                        lambda: in_thread(lambda: tools.press_keys("win")),
+                        lambda: in_thread(windows.minimize_all))
+    icons = {}
+
+    def refresh_dock():
+        if not flags.get("taskbar"):
+            return
+        listed = windows.app_windows()
+        for window in listed:
+            if window["hwnd"] not in icons:
+                hicon = winctl.window_icon(window["hwnd"])
+                icons[window["hwnd"]] = QImage.fromHICON(hicon) if hicon else None
+            window["icon"] = icons[window["hwnd"]]
+        dock.set_windows(listed)
+
+    dock_timer = QTimer()
+    dock_timer.timeout.connect(refresh_dock)
+    dock_timer.start(1000)
+
+    engine = Engine(windows, winctl.Cursor(),
                     keys=press, work_area=winctl.work_area(), volume=volume,
-                    ui=Floating(keyboard, notes, flags, to_window),
+                    ui=Floating(keyboard, notes, flags, to_window, panels, dock, life_panel),
                     menu=(len(holoviz.MENU_ITEMS), open_menu_item))
     state = {"faces": [], "earth_faced": False, "earth_loading": False}
 
@@ -523,11 +606,20 @@ def main():
             earth.draw(painter, width, height, view)
         if flags.get("visualizer"):
             holoviz.draw_visualizer(painter, width, height, audio.bands)
+        hover = to_window(engine.points[engine.primary]) if engine.primary in engine.points else None
+        if flags.get("life"):
+            # Entre los paneles laterales, si están a la vista.
+            left, right = (418, width - 356) if flags.get("panels") else (40, width - 40)
+            life_panel.draw(painter, QRectF(left, 60, right - left, height - 220), hover)
+        if flags.get("panels"):
+            panels.draw(painter, width, height, hover)
         if flags.get("notes"):
             notes.draw(painter)
         if flags.get("keyboard"):
-            hover = to_window(engine.points[engine.primary]) if engine.primary in engine.points else None
             keyboard.draw(painter, hover)
+        if flags.get("taskbar"):
+            dock.update(hover, height, pinned=False)
+            dock.draw(painter, width, height, hover)
         if engine.menu is not None:
             holoviz.draw_menu(painter, to_window(engine.menu["center"]), engine.menu["selected"])
         if flags.get("effects"):
@@ -558,6 +650,9 @@ def main():
 
     def on_frame(image, hands, faces):
         now = time.monotonic()
+        if not state.get("dock_intro") and flags.get("taskbar"):
+            dock.pin_until = now + 6  # al encender, la barra se presenta unos segundos
+            state["dock_intro"] = True
         drawn, inputs = [], []
         for hand in hands:
             points = [mapper(x, y) for x, y in hand["points"]]
@@ -605,12 +700,21 @@ def main():
 
     def on_feed(data):
         overlay.stats = data
+        panels.stats = {**data, "disk": data["disk"]}
+        if data["status"] is not None:
+            panels.status = data["status"]
+            panels.add_events(data["chat"])
         if data["notes"] is not None:
             notes.update_from_server(data["notes"])
         if data["modes"] is not None:
             modes = data["modes"]
+            if modes.get("taskbar") and not flags.get("taskbar"):
+                dock.pin_until = time.monotonic() + 6
             flags.clear()
             flags.update(modes)
+            feed.want_life = bool(modes.get("life"))
+            life_panel.update(data.get("life"), modes.get("life_page"))
+            overlay.classic = not modes.get("panels")
             engine.draw_mode = modes.get("draw", False)
             engine.globe_mode = any(modes.get(name) for name in ("globe", "solar", "earth"))
             engine.effects_mode = modes.get("effects", False)

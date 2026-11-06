@@ -18,9 +18,9 @@ def greeting(now: datetime) -> str:
     return "Buenas noches"
 
 
-def weather() -> str | None:
-    """Clima actual de wttr.in, por la ciudad de JARVIS_CITY o la ubicación aproximada de la conexión."""
-    city = urllib.parse.quote(os.environ.get("JARVIS_CITY", ""))
+def weather(place: str | None = None) -> str | None:
+    """Clima actual de wttr.in: de place, de JARVIS_CITY o de la ubicación aproximada de la conexión."""
+    city = urllib.parse.quote(place or os.environ.get("JARVIS_CITY", ""))
     try:
         request = urllib.request.Request(f"https://wttr.in/{city}?format=j1&lang=es", headers={"User-Agent": "curl/8"})
         with urllib.request.urlopen(request, timeout=5) as response:

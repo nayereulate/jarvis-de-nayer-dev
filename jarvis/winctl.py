@@ -143,6 +143,17 @@ class Windows:
                 minimized.append(hwnd)
         return minimized
 
+    def app_windows(self) -> list[dict]:
+        """Las ventanas que salen en la barra de tareas, de la usada más recientemente a la más antigua."""
+        found = []
+        for hwnd in top_down():
+            if self._is_app_window(hwnd):
+                title = window_title(hwnd)
+                if title:
+                    found.append({"hwnd": hwnd, "title": title, "minimized": bool(user32.IsIconic(hwnd)),
+                                  "active": hwnd == user32.GetForegroundWindow()})
+        return found
+
     def is_minimized(self, hwnd) -> bool:
         return bool(user32.IsWindow(hwnd) and user32.IsIconic(hwnd))
 
@@ -157,6 +168,70 @@ class Windows:
 
     def maximize(self, hwnd) -> None:
         user32.ShowWindow(hwnd, SW_MAXIMIZE)
+
+
+WM_GETICON = 0x7F
+SMTO_ABORTIFHUNG = 0x2
+GCLP_HICON = -14
+VK_MENU = 0x12
+KEYEVENTF_KEYUP = 0x2
+user32.SendMessageTimeoutW.argtypes = [HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM, wintypes.UINT,
+                                       wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+user32.GetClassLongPtrW.argtypes = [HWND, ctypes.c_int]
+user32.GetClassLongPtrW.restype = ctypes.c_size_t
+user32.SetForegroundWindow.argtypes = [HWND]
+user32.GetForegroundWindow.restype = HWND
+
+
+def window_title(hwnd) -> str:
+    buffer = ctypes.create_unicode_buffer(256)
+    user32.GetWindowTextW(hwnd, buffer, 256)
+    return buffer.value
+
+
+def window_icon(hwnd) -> int:
+    """El ícono de la ventana (HICON), o 0. Con tiempo límite: una app colgada no frena al holograma."""
+    for kind in (1, 2, 0):  # grande, pequeño de la app, pequeño
+        result = ctypes.c_size_t(0)
+        if user32.SendMessageTimeoutW(hwnd, WM_GETICON, kind, 0, SMTO_ABORTIFHUNG, 50, ctypes.byref(result)) and result.value:
+            return result.value
+    return user32.GetClassLongPtrW(hwnd, GCLP_HICON)
+
+
+WM_CLOSE = 0x10
+user32.PostMessageW.argtypes = [HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+
+
+def process_name(hwnd) -> str:
+    import psutil
+
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    try:
+        return psutil.Process(pid.value).name()
+    except psutil.Error:
+        return ""
+
+
+def close_window(hwnd) -> None:
+    """Como pulsar la X de la ventana."""
+    user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+
+
+def cursor_position() -> tuple[int, int]:
+    point = wintypes.POINT()
+    user32.GetCursorPos(ctypes.byref(point))
+    return point.x, point.y
+
+
+def activate(hwnd) -> None:
+    """Trae la ventana al frente, restaurándola si estaba minimizada."""
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+    # Windows solo deja pasar el foco a otra app justo después de usar el teclado: un Alt suelto lo permite.
+    user32.keybd_event(VK_MENU, 0, 0, 0)
+    user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+    user32.SetForegroundWindow(hwnd)
 
 
 def work_area() -> tuple[int, int, int, int]:

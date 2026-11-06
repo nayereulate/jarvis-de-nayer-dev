@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from . import tools
+from . import commands, tools
 from .memory import memory
 from .paths import DATA_DIR
 
@@ -27,6 +27,9 @@ Acciones disponibles (tool y args):
 - system_status {}
 - list_processes {"limit": número}
 - open_app {"name": "notepad|calculadora|explorador|chrome|edge|administrador_tareas"}
+- launch {"name": "..."}  (abre cualquier app, web o carpeta por su nombre: "spotify", "descargas", "youtube", "obs")
+- close_app {"name": "..."} / focus_window {"name": "..."}  (cierra una app como con la X, o trae su ventana al frente)
+- window_action {"action": "minimize|maximize|restore|minimize_all"} / set_volume {"level": 0-100} / take_screenshot {}
 - open_url {"url": "https://..."}
 - media_key {"key": "volume_up|volume_down|mute|next|previous|play_pause"}
 - lock_pc {}
@@ -56,9 +59,21 @@ Acciones disponibles (tool y args):
 - holo {"name": "...", "enabled": true|false}  (muestra u oculta un holograma; enciende el modo holograma si hace falta). name:
     draw (dibujar en el aire), globe (esfera holográfica), solar (sistema solar), earth (globo terráqueo con día y noche),
     scanner (escáner de identidad sobre la cara), effects (partículas en los dedos y bola de energía entre las manos),
-    keyboard (teclado holográfico), notes (notas adhesivas flotantes), visualizer (visualizador de la música)
+    keyboard (teclado holográfico), notes (notas adhesivas flotantes), visualizer (visualizador de la música),
+    panels (la conversación y el estado a los costados de la pantalla), taskbar (barra de tareas holográfica)
 - earth_city {"city": "Madrid"}  (marca una ciudad con su clima en el globo terráqueo y lo muestra)
 - create_note {"text": "..."} / delete_note {"id": "..."} / list_notes {}  (notas adhesivas holográficas; se guardan)
+- life_summary {}  (todo sobre la vida del usuario: tareas, peso, comidas y metas, agua, sueño, ejercicio, dinero, ánimo,
+    hábitos, rutina, horario de clases, eventos, feriados de Bolivia y mapas de ideas; úsalo para responder sobre su vida)
+- life {"action": "...", "args": {...}}  (registra o cambia algo de su vida). Acciones y args:
+    task_add {text, due: "AAAA-MM-DD", priority: "alta|normal"} · task_done {task} · task_delete {task}
+    weight {kg} · height {cm} · profile {age, sex: "hombre|mujer", target_kg} · meal {text, meal: "desayuno|almuerzo|cena|merienda"}
+    water {glasses} · sleep {hours} · exercise {kind, minutes} · money {amount, category, note, kind: "gasto|ingreso|ahorro"}
+    mood {score: 1-5, note} · habit_add {name} · habit_check {habit} · routine_add {text, time: "HH:MM"} · routine_check {item}
+    event_add {title, day: "AAAA-MM-DD", time, place} · class_add {day: "lunes", start: "HH:MM", end, subject, room, place, teacher}
+    map_add {name, kind: "ideas|flujo"} · node_add {map_, text, parent, shape: "box|diamond|oval", label} · link_add {map_, source, target}
+    (task, habit, item, map_, parent… aceptan el id o parte del texto)
+- life_show {"page": "today|tasks|body|food|habits|money|classes|calendar|ideas"}  (muestra esa sección en el holograma)
 - set_timer {"minutes": número, "seconds": número, "label": "..."}  (temporizador con anillo en pantalla; avisa al terminar)
 - record_start {} / record_stop {}  (grabar la pantalla y el micrófono en Videos\\Jarvis)
 
@@ -241,7 +256,23 @@ class Brain:
         with self.lock:
             self.pending.clear()
             audit("user", message=message)
+            local = commands.route(message)
+            if local is not None:
+                return self._local(local)
+            if tools.settings.get("local_only"):
+                return {"say": "No conozco ese comando. Di «qué puedes hacer» o mira la lista en COMANDOS. "
+                               "Para preguntas libres, desactiva el modo local.", "pending": None, "local": True}
             return self._converse(stamp(message))
+
+    def _local(self, result: dict) -> dict:
+        """Un comando resuelto sin Claude. Si necesita permiso, queda pendiente igual que con Claude."""
+        audit("local", command=result["command"], say=result["say"])
+        if not result.get("confirm"):
+            return {"say": result["say"], "pending": None, "local": True}
+        pending_id = uuid.uuid4().hex
+        self.pending[pending_id] = {"actions": result["confirm"], "done": [], "local": True}
+        audit("confirmation_requested", id=pending_id, actions=result["confirm"])
+        return {"say": result["say"], "pending": {"id": pending_id, "actions": result["confirm"]}, "local": True}
 
     def resolve(self, pending_id: str, approved: bool) -> dict:
         with self.lock:
@@ -256,6 +287,13 @@ class Brain:
                 else:
                     audit("denied", **action)
                     results.append({**action, "outcome": {"ok": False, "error": "El usuario lo rechazó"}})
+            if batch.get("local"):
+                failed = [r["outcome"]["error"] for r in results if not r["outcome"]["ok"]]
+                if not approved:
+                    say = "De acuerdo, no lo hago."
+                else:
+                    say = "No se pudo: " + failed[0] if failed else "Hecho."
+                return {"say": say, "pending": None, "local": True}
             prompt = "Resultados de las acciones:\n" + json.dumps(batch["done"] + results, ensure_ascii=False)
             return self._converse(prompt)
 

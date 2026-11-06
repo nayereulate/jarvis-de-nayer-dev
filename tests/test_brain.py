@@ -122,7 +122,7 @@ def test_safe_action_result_goes_back_to_model():
         {"say": "", "actions": [{"tool": "system_status", "args": {}}]},
         {"say": "Todo bien", "actions": []},
     )
-    assert Brain(llm=llm).chat("estado")["say"] == "Todo bien"
+    assert Brain(llm=llm).chat("analiza mi PC y dime si debo preocuparme")["say"] == "Todo bien"
     assert "cpu_percent" in llm.prompts[-1]
 
 

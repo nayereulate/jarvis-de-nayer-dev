@@ -94,10 +94,10 @@ Para que arranque solo con Windows: doble clic en `arranque-con-windows.bat` (y 
 | Puño 0,6 s | Minimizar la ventana |
 | Puño corto y abrir la palma | Maximizar o restaurar; fuera de las ventanas, devuelve la última minimizada |
 | Dos palmas abiertas 1 s | Minimizar todo o devolverlo |
-| 🤙 Pulgar y meñique, girar la mano | Perilla de volumen |
+| Pulgar y meñique estirados, girar la mano | Perilla de volumen |
 | Modo dibujo: pellizcar y mover / puño | Dibujar trazos de luz / borrar |
 | Modo esfera: pellizcar y arrastrar / dos manos | Girar la esfera / agrandarla |
-| 🤘 Índice y meñique | Menú radial de apps: apunta y pellizca |
+| Índice y meñique estirados | Menú radial de apps: apunta y pellizca |
 
 ## Hologramas
 Se piden por voz («Hey Jarvis, muestra el sistema solar») o desde el chip **HOLOGRAMAS** de la página.
@@ -114,6 +114,33 @@ Se piden por voz («Hey Jarvis, muestra el sistema solar») o desde el chip **HO
 | Notas adhesivas | «Crea una nota: …». Se mueven con la mano, se borran con un puño y se guardan |
 | Visualizador | Espectro circular que reacciona a la música y a la voz de Jarvis |
 | Temporizador | «Pon un temporizador de 5 minutos»: un anillo junto al orbe que se va vaciando |
+
+## Mi vida
+Un panel personal para seguir tu día. Se ve como holograma, en la página (botón **MI VIDA**) y responde por voz.
+
+| Sección | Ejemplos por voz |
+|---|---|
+| Tareas | «agrega tarea pagar la luz para mañana», «¿qué tareas tengo?», «terminé …» |
+| Cuerpo | «peso 70 kilos», «mido 1.75», «mi meta es 75 kilos» (IMC, gráfica de peso, metas de calorías y proteína) |
+| Comida | «almorcé un silpancho y una coca» (calorías y proteínas con una tabla local, incluida comida boliviana) |
+| Salud | «tomé 2 vasos de agua», «dormí 7 horas», «hice 45 minutos de pesas», «me siento bien» |
+| Dinero | «gasté 25 bolivianos en comida», «ahorré 100», «¿cuánto gasté este mes?» |
+| Hábitos y rutina | «agrega el hábito leer», «agrega a mi rutina tender la cama a las 7», «hice leer» |
+| Clases | «agrega clase de Cálculo el lunes de 8 a 10 en el aula A12 con el ingeniero Rojas», «¿qué clase tengo ahora?» |
+| Calendario | «tengo examen de física el 20 de noviembre a las 10», feriados de Bolivia y Cochabamba calculados cada año |
+| Ideas | mapas de ideas y diagramas de flujo con nodos que se mueven con la mano en el holograma |
+
+Tus datos se guardan solo en tu PC (`data/vida.json`).
+
+## Comandos locales
+Las órdenes del día a día (música, apps, pestañas, ventanas, teclado, temporizadores, hologramas, Mi vida…) se resuelven
+en tu PC al instante, sin usar Claude. Las preguntas libres y las tareas complejas sí van a Claude. La lista completa está en
+el botón **COMANDOS** de la página, y con **SOLO LOCAL** Jarvis no usa Claude para nada.
+
+## En el holograma, además
+- **Paneles laterales:** la conversación, el estado de la PC y todos los botones de la página, pulsables con un pellizco.
+  Las acciones delicadas (apagar, borrar) se aprueban manteniendo el pellizco 1,5 segundos.
+- **Barra de tareas holográfica:** baja la mano al borde inferior y pellizca la ventana que quieras.
 
 ## Configuración opcional (variables de entorno)
 | Variable | Para qué |

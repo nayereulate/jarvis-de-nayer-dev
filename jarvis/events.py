@@ -14,6 +14,11 @@ class Events:
             self._items.append({"id": self._next_id, "type": kind, **data})
             self._next_id += 1
 
+    def recent(self, kinds: set[str], count: int) -> list[dict]:
+        """Los últimos avisos de esos tipos, para que una ventana recién abierta muestre la conversación."""
+        with self._lock:
+            return [item for item in self._items if item["type"] in kinds][-count:]
+
     def since(self, after: int) -> tuple[list[dict], int]:
         """Una página recién abierta (after < 0) o de antes de un reinicio no recibe el historial."""
         with self._lock:

@@ -373,7 +373,11 @@ class Boot(QWidget):
         for i, name in enumerate(self.MODULES):
             ready = i < done
             painter.setPen(faded(CYAN if ready else GRAY, 230 if ready else 120))
-            painter.drawText(QPointF(x, y + i * 28), f"{'■' if ready else '□'} {name:<9} {'EN LÍNEA' if ready else '...'}")
+            mark = QRectF(x, y + i * 28 - 9, 9, 9)  # un cuadro relleno cuando el módulo está listo
+            painter.setBrush(faded(CYAN, 230) if ready else Qt.NoBrush)
+            painter.drawRect(mark)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawText(QPointF(x + 18, y + i * 28), f"{name:<9} {'EN LÍNEA' if ready else '...'}")
         bar = QRectF(self.width() * 0.3, center.y() + size * 0.3 + 70, self.width() * 0.4, 4)
         painter.fillRect(bar, faded(CYAN, 50))
         painter.fillRect(QRectF(bar.left(), bar.top(), bar.width() * min(1.0, t / 0.8), bar.height()), CYAN)
